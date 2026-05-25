@@ -1,0 +1,165 @@
+// AccountsTable — Supabase-inspired (DESIGN.md)
+// card-feature-light: canvas #ffffff, hairline #dfdfdf, rounded.lg 12px
+.accounts-table-card {
+  background: #ffffff !important;   // canvas
+  border: 1px solid #dfdfdf !important; // hairline
+  border-radius: 12px !important;   // rounded.lg
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); // elevation 1
+
+  .ant-card-head {
+    background: transparent !important;
+    border-bottom: 1px solid #dfdfdf !important; // hairline
+    padding: 14px 20px !important;
+  }
+
+  .ant-card-body {
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  @media (max-width: 768px) {
+    .ant-card-body,
+    .ant-card-head {
+      padding: 12px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    border-radius: 8px !important;
+
+    .ant-card-head,
+    .ant-card-body {
+      padding: 10px !important;
+    }
+  }
+
+  // ── Table ──────────────────────────────────────────────────────────────────
+  .ant-table-wrapper {
+    background: transparent !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-table,
+  .ant-table-container,
+  .ant-table-content {
+    background: transparent !important;
+  }
+
+  .ant-table-thead > tr > th {
+    background: #fafafa !important; // canvas-soft
+    border-bottom: 1px solid #dfdfdf !important; // hairline
+    color: #6b6b6b !important;      // WCAG 1.4.3: 5.08:1 on #fafafa ✓ (was #9a9a9a = 2.70:1 ✗)
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 16px !important;
+  }
+
+  .ant-table-tbody > tr > td {
+    background: transparent !important;
+    border-bottom: 1px solid #ededed !important; // hairline-cool
+    color: #171717; // ink
+    padding: 12px 16px !important;
+  }
+
+  .ant-table-tbody > tr:hover > td {
+    background: #fafafa !important; // canvas-soft hover
+  }
+
+  .ant-table-tbody > tr:last-child > td {
+    border-bottom: none !important;
+  }
+
+  // ── Stat badges (click to view details) ───────────────────────────────────
+  .stat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    padding: 3px 10px;
+    border-radius: 4px;     // rounded.xs — technical, square-ish
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 110ms ease, color 110ms ease;
+    font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; // code feel for numbers
+
+    // Likes: emerald — the one chromatic event per the design system
+    &--likes {
+      background: rgba(62, 207, 142, 0.12);
+      color: #1a7f5e; // deep emerald — passes WCAG on the tinted bg
+    }
+
+    // Comments: canvas-night tint — monochrome secondary
+    &--comments {
+      background: #f4f4f4;
+      color: #212121; // ink-secondary
+    }
+
+    // Disabled (zero count)
+    &--disabled {
+      background: #f4f4f4;
+      color: #b2b2b2; // ink-faint
+      cursor: default;
+    }
+
+    &:not(&--disabled):hover {
+      filter: brightness(0.93);
+    }
+  }
+
+  // ── Export buttons ─────────────────────────────────────────────────────────
+  .folder-button {
+    // Primary CTA: emerald fill with dark text (DESIGN.md signature)
+    background: #3ecf8e !important;
+    border-color: #3ecf8e !important;
+    color: #171717 !important; // ink on emerald
+
+    &:hover {
+      background: #24b47e !important; // primary-deep
+      border-color: #24b47e !important;
+      color: #171717 !important;
+    }
+  }
+
+  .export-selected-button {
+    // Secondary outline style
+    border-color: #dfdfdf;
+    color: #171717;
+    background: #ffffff;
+
+    &:hover:not(:disabled) {
+      border-color: #3ecf8e;
+      color: #1a7f5e;
+    }
+
+    // WCAG 1.4.3: disabled text ≥ 4.5:1 — #595959 on #f5f5f5 ≈ 6.2:1 ✓
+    &.ant-btn-disabled,
+    &.ant-btn[disabled] {
+      color: #595959 !important;
+      background-color: #f5f5f5 !important;
+      border-color: #dfdfdf !important;
+      cursor: not-allowed !important;
+    }
+  }
+
+  // ── Custom table ──────────────────────────────────────────────────────────
+  .custom-table .ant-table {
+    min-width: 640px;
+  }
+
+  @media (max-width: 640px) {
+    .custom-table .ant-table {
+      min-width: 520px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .custom-table .ant-table {
+      min-width: 420px;
+      font-size: 12px;
+    }
+  }
+}

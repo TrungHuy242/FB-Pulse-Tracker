@@ -1,0 +1,130 @@
+// Header — Supabase-inspired (DESIGN.md)
+// nav-bar-light: canvas #ffffff, ink #171717, hairline #dfdfdf border-bottom
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dfdfdf; // hairline
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #ffffff; // canvas
+
+  .logo-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: default;
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: #3ecf8e; // emerald — the brand's signature
+      border-radius: 6px;  // rounded.sm
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      // Dark icon on emerald (brand's "lit surface" approach)
+      color: #171717;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .title {
+      margin: 0;
+      color: #171717;        // ink
+      font-size: 16px;
+      font-weight: 500;      // display weight per DESIGN.md
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+  }
+
+  // nav element — WCAG 1.3.6 nav landmark
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    // Reset nav default styles
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+// Avatar — emerald bg, focus ring
+.header-container .ant-avatar {
+  cursor: pointer;
+  transition: box-shadow 140ms ease, opacity 140ms ease;
+  background: #3ecf8e !important;
+  color: #171717 !important; // dark on emerald
+
+  &:hover {
+    box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.22);
+  }
+}
+
+// Dropdown menu
+.ant-dropdown-menu-item {
+  transition: background 100ms ease;
+  border-radius: 4px !important; // rounded.xs
+}
+
+// Select multi-tag single row
+.header-container .ant-select-multiple {
+  .ant-select-selection-overflow {
+    flex-wrap: nowrap;
+  }
+}
+
+// Import drawer/modal upload zone
+.upload-dragger-ui {
+  .ant-upload-drag {
+    background: #fafafa;          // canvas-soft
+    border: 1.5px dashed #dfdfdf; // hairline
+    border-radius: 8px;
+    padding: 32px 0;
+    text-align: center;
+    transition: border-color 140ms ease, background 140ms ease;
+
+    &:hover {
+      border-color: #3ecf8e;  // emerald on hover
+      background: #f0fdf8;    // faint emerald tint
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+
+    .logo-section .title {
+      font-size: 15px;
+    }
+
+    .header-actions {
+      width: 100%;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .header-container {
+    gap: 10px;
+
+    .logo-section {
+      .logo-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+
+      .title {
+        font-size: 14px;
+      }
+    }
+  }
+}

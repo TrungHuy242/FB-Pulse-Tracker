@@ -1,0 +1,129 @@
+// Admin page — Supabase-inspired (DESIGN.md)
+// canvas #ffffff, hairline #dfdfdf, emerald #3ecf8e logo
+.admin-page {
+  min-height: 100vh;
+  background: #ffffff;   // canvas
+  padding: 32px 24px;
+
+  @media (max-width: 768px) {
+    padding: 20px 16px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 16px 12px;
+  }
+
+  .admin-card {
+    background: #ffffff;
+    border: 1px solid #dfdfdf; // hairline
+    border-radius: 12px;       // rounded.lg
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); // elevation 1
+    padding: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+
+    @media (max-width: 768px) {
+      padding: 16px;
+    }
+
+    @media (max-width: 480px) {
+      padding: 12px;
+    }
+  }
+
+  .admin-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #dfdfdf; // hairline
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;  // heading-md weight
+      color: #171717;    // ink
+      letter-spacing: 0;
+    }
+  }
+
+  .logo-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: opacity 120ms ease;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: #3ecf8e; // emerald — same as main header
+      border-radius: 6px;   // rounded.sm
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #171717;       // dark on emerald
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+  }
+
+  // ── Table ──────────────────────────────────────────────────────────────────
+  .admin-card {
+    .ant-table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .ant-table,
+    .ant-table-container,
+    .ant-table-content {
+      background: transparent !important;
+    }
+
+    .ant-table-thead > tr > th {
+      background: #fafafa !important; // canvas-soft
+      border-bottom: 1px solid #dfdfdf !important; // hairline
+      color: #6b6b6b !important; // WCAG 1.4.3: 5.08:1 on #fafafa ✓ (was #9a9a9a = 2.70:1 ✗)
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 10px 16px !important;
+    }
+
+    .ant-table-tbody > tr > td {
+      background: transparent !important;
+      border-bottom: 1px solid #ededed !important; // hairline-cool
+      color: #171717; // ink
+    }
+
+    .ant-table-tbody > tr:hover > td {
+      background: #fafafa !important; // canvas-soft
+    }
+
+    .ant-table-tbody > tr:last-child > td {
+      border-bottom: none !important;
+    }
+  }
+
+  // ── Modal form ─────────────────────────────────────────────────────────────
+  .ant-modal {
+    .ant-input {
+      width: 100%;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #171717; // ink
+      margin-bottom: 6px;
+    }
+  }
+}

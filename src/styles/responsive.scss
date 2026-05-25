@@ -1,0 +1,102 @@
+// Global layout + canvas reset — DESIGN.md (Supabase-inspired)
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #ffffff; // canvas — pure white
+  color: #171717;             // ink — near-black
+  font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ─── Danger solid buttons: white text (dark text on red fails contrast) ────────
+// colorTextLightSolid is set to #171717 globally for emerald button,
+// but danger (red) solid buttons must restore white text.
+.ant-btn-primary.ant-btn-dangerous {
+  color: #ffffff !important;
+
+  &:hover,
+  &:active,
+  &:focus {
+    color: #ffffff !important;
+  }
+}
+
+// ─── Home page ────────────────────────────────────────────────────────────────
+.home-page-container {
+  @media (max-width: 768px) {
+    padding: 16px !important;
+  }
+
+  @media (max-width: 480px) {
+    padding: 12px !important;
+  }
+}
+
+// ─── Table mobile scroll ──────────────────────────────────────────────────────
+.ant-table-wrapper {
+  @media (max-width: 768px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    .ant-table {
+      min-width: 600px;
+      font-size: 13px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    overflow-x: auto;
+
+    .ant-table {
+      font-size: 12px;
+      min-width: 480px;
+    }
+
+    .ant-table-thead > tr > th {
+      padding: 8px 6px !important;
+      font-size: 11px !important;
+      font-weight: 600;
+    }
+
+    .ant-table-tbody > tr > td {
+      padding: 8px 6px !important;
+      font-size: 12px !important;
+    }
+
+    .ant-table-selection-column {
+      width: 32px !important;
+    }
+  }
+}
+
+// ─── Modal responsive ─────────────────────────────────────────────────────────
+.ant-modal {
+  @media (max-width: 768px) {
+    .ant-modal-content {
+      padding: 16px !important;
+      border-radius: 8px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    width: calc(100vw - 16px) !important;
+
+    .ant-modal-content {
+      padding: 12px !important;
+      border-radius: 8px;
+    }
+
+    .ant-modal-body {
+      padding: 12px !important;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+  }
+}
