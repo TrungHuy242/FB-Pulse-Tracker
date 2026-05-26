@@ -10,6 +10,10 @@ import viVN from "antd/locale/vi_VN";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
+import ImportsPage from "./pages/ImportsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import CommentsPage from "./pages/CommentsPage";
+import SettingsPage from "./pages/SettingsPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -90,19 +94,27 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/"
-              element={
-                <RequireAuth>
-                  <HomePage />
-                </RequireAuth>
-              }
+              element={<RequireAuth><HomePage /></RequireAuth>}
+            />
+            <Route
+              path="/imports"
+              element={<RequireAuth><ImportsPage /></RequireAuth>}
+            />
+            <Route
+              path="/analytics"
+              element={<RequireAuth><AnalyticsPage /></RequireAuth>}
+            />
+            <Route
+              path="/comments"
+              element={<RequireAuth><CommentsPage /></RequireAuth>}
+            />
+            <Route
+              path="/settings"
+              element={<RequireAuth><SettingsPage /></RequireAuth>}
             />
             <Route
               path="/admin"
-              element={
-                <RequireAuth>
-                  <AdminPage />
-                </RequireAuth>
-              }
+              element={<RequireAuth><AdminPage /></RequireAuth>}
             />
           </Routes>
         </Router>

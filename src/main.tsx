@@ -5,6 +5,7 @@ import { LoadingProvider } from "@/contexts/LoadingContext";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { AuthProvider } from "@/contexts/AuthContext";
 import "./styles/responsive.scss";
+import "./styles/layout.scss";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

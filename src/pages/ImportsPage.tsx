@@ -1,59 +1,53 @@
 /**
- * HomePage — Trang tổng quan (Dashboard).
- * Hiển thị: StatsCards + EngagementChart + AccountsTable (tóm tắt).
+ * ImportsPage — Quản lý danh sách imports.
+ * Cho phép: xem, lọc, xuất Excel, xóa từng import hoặc tất cả.
  */
-import { StatsCards } from "@/components/StatsCards";
-import EngagementChart from "@/components/EngagementChart";
-import { AccountsTable } from "@/components/AccountsTable";
-import { useRef, useState, useMemo } from "react";
-import { Row, Col, Button, DatePicker, Select, Tooltip, Space } from "antd";
+import { useRef, useState, useMemo, useEffect, useCallback } from "react";
+import { Button, DatePicker, Select, Space, Tooltip } from "antd";
 import { FileTextOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useStats } from "@/hooks/useStats";
-import type { StatsFilter } from "@/types";
 import { AppLayout } from "@/layouts/AppLayout";
-import { getAccountNames } from "@/service/importService";
-import { useEffect } from "react";
+import { AccountsTable } from "@/components/AccountsTable";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
+import { getAccountNames } from "@/service/importService";
+import type { StatsFilter } from "@/types";
 
 interface AccountsTableRef {
   reloadTable: () => void;
 }
 
-export default function HomePage() {
-  const accountsTableRef = useRef<AccountsTableRef>(null);
+export default function ImportsPage() {
+  const tableRef = useRef<AccountsTableRef>(null);
   const importRef = useRef<FormDrawerHandle | null>(null);
   const selectContainerRef = useRef<HTMLDivElement>(null);
 
-  const [advancedFilter, setAdvancedFilter] = useState<StatsFilter>({});
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | undefined>(undefined);
+  const [appliedFilter, setAppliedFilter] = useState<StatsFilter>({});
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const fromTime = advancedFilter.from?.getTime() ?? null;
-  const toTime = advancedFilter.to?.getTime() ?? null;
-  const filterName = advancedFilter.name ?? null;
+  const fromTime = appliedFilter.from?.getTime() ?? null;
+  const toTime = appliedFilter.to?.getTime() ?? null;
+  const filterName = appliedFilter.name ?? null;
 
   const effectiveFilter = useMemo<StatsFilter | undefined>(() => {
-    const hasRange = !!(advancedFilter.from && advancedFilter.to);
-    const hasName = !!advancedFilter.name;
-    if (hasRange || hasName) return advancedFilter;
+    const hasRange = !!(appliedFilter.from && appliedFilter.to);
+    const hasName = !!appliedFilter.name;
+    if (hasRange || hasName) return appliedFilter;
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromTime, toTime, filterName]);
 
-  const { stats, loading: statsLoading, reloadStats } = useStats(effectiveFilter);
-  const [refreshSignal, setRefreshSignal] = useState(0);
-
-  // Aria patch cho Select combobox
-  const patchSelectAria = () => {
+  // Aria patch
+  const patchSelectAria = useCallback(() => {
     const container = selectContainerRef.current;
     if (!container) return;
     const combobox = container.querySelector<HTMLElement>('[role="combobox"]');
     if (combobox && !combobox.getAttribute("aria-controls")) {
-      combobox.setAttribute("aria-controls", "home-user-filter-select_list");
+      combobox.setAttribute("aria-controls", "imports-user-filter_list");
     }
-  };
+  }, []);
 
   useEffect(() => {
     patchSelectAria();
@@ -62,55 +56,44 @@ export default function HomePage() {
     const observer = new MutationObserver(patchSelectAria);
     observer.observe(container, { childList: true, subtree: true });
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [patchSelectAria]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    getAccountNames()
-      .then(setAccountOptions)
-      .catch(console.error);
+    getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
-  let dateLabel = "Tất cả";
-  if (effectiveFilter?.from && effectiveFilter?.to) {
-    const from = dayjs(effectiveFilter.from);
-    const to = dayjs(effectiveFilter.to);
-    dateLabel = from.isSame(to, "day")
-      ? from.format("D/M/YYYY")
-      : `${from.format("D/M/YYYY")} – ${to.format("D/M/YYYY")}`;
-  }
-
-  const handleImportSuccess = async () => {
+  const refreshAccounts = async () => {
     try {
       const names = await getAccountNames();
       setAccountOptions(names);
     } catch {
       // ignore
     }
-    accountsTableRef.current?.reloadTable();
-    reloadStats();
+  };
+
+  const handleImportSuccess = async () => {
+    await refreshAccounts();
+    tableRef.current?.reloadTable();
     setRefreshSignal((s) => s + 1);
   };
 
-  const handleFilterClick = () => {
+  const handleFilter = () => {
     let from: Date | undefined;
     let to: Date | undefined;
     if (range?.[0] && range?.[1]) {
       from = dayjs(range[0]).startOf("day").toDate();
       to = dayjs(range[1]).endOf("day").toDate();
     }
-    const nameToSend = selectedAccounts?.length ? selectedAccounts : undefined;
-    setAdvancedFilter({ from, to, name: nameToSend });
+    setAppliedFilter({ from, to, name: selectedAccounts?.length ? selectedAccounts : undefined });
   };
 
   const handleClear = () => {
     setRange(null);
     setSelectedAccounts(undefined);
-    setAdvancedFilter({});
+    setAppliedFilter({});
   };
 
-  // Top bar: filter controls + import button
   const topBar = (
     <Space size={6} wrap>
       <Button
@@ -118,7 +101,7 @@ export default function HomePage() {
         onClick={() => importRef.current?.open()}
         size="small"
       >
-        Import
+        Import mới
       </Button>
 
       <DatePicker.RangePicker
@@ -129,13 +112,12 @@ export default function HomePage() {
           else setRange([dates[0], dates[1]]);
         }}
         placeholder={["Từ ngày", "Đến ngày"]}
-        aria-label="Khoảng thời gian lọc"
         allowClear
       />
 
       <div ref={selectContainerRef} style={{ display: "contents" }}>
         <Select
-          id="home-user-filter-select"
+          id="imports-user-filter"
           placeholder="Chọn người dùng"
           aria-label="Chọn người dùng"
           size="small"
@@ -163,37 +145,19 @@ export default function HomePage() {
         </Select>
       </div>
 
-      <Button type="primary" size="small" onClick={handleFilterClick}>Lọc</Button>
+      <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
     </Space>
   );
 
   return (
-    <AppLayout title="Tổng quan" topBar={topBar}>
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24} lg={8}>
-          <StatsCards
-            stats={stats}
-            loading={statsLoading}
-            dateLabel={dateLabel}
-          />
-        </Col>
-        <Col xs={24} lg={16}>
-          <EngagementChart
-            filter={effectiveFilter}
-            refreshSignal={refreshSignal}
-          />
-        </Col>
-      </Row>
-
+    <AppLayout title="Imports" topBar={topBar}>
       <AccountsTable
-        ref={accountsTableRef}
+        ref={tableRef}
         filter={effectiveFilter}
-        reloadStats={reloadStats}
         refreshSignal={refreshSignal}
         onDataChange={() => setRefreshSignal((s) => s + 1)}
       />
-
       <ImportZip ref={importRef} onImportSuccess={handleImportSuccess} />
     </AppLayout>
   );

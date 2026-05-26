@@ -21,8 +21,7 @@ import { useImportComments } from "./AccountsTable/hooks/useImportComments";
 import { useImportReactions } from "./AccountsTable/hooks/useImportReactions";
 import { exportAllImportsToExcel } from "./exportAllImportsToExcel";
 import { useLoading } from "@/contexts/LoadingContext";
-import { deleteDoc, doc, collection, getDocs } from "firebase/firestore";
-import { db } from "@/service/firebase";
+import { deleteImport } from "@/service/importService";
 import type { Timestamp } from "firebase/firestore";
 
 export interface AccountsTableRef {
@@ -56,7 +55,7 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fromTime, toTime, filterName, filterMinLikes, filterMinComments]);
 
-    const { tableData, reloadTable } = useAccountsTable(
+    const { tableData, reloadTable, hasMore, loadMore, load: tableLoading } = useAccountsTable(
       memoFilter,
       refreshSignal,
       "filter-accounts"
@@ -109,21 +108,8 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           }
 
           try {
-            const commentChunksSnap = await getDocs(
-              collection(db, "imports", importId, "commentChunks")
-            );
-            for (const d of commentChunksSnap.docs) {
-              await deleteDoc(doc(db, "imports", importId, "commentChunks", d.id));
-            }
-
-            const reactionChunksSnap = await getDocs(
-              collection(db, "imports", importId, "reactionChunks")
-            );
-            for (const d of reactionChunksSnap.docs) {
-              await deleteDoc(doc(db, "imports", importId, "reactionChunks", d.id));
-            }
-
-            await deleteDoc(doc(db, "imports", importId));
+            // Cascade delete qua service layer
+            await deleteImport(importId);
             message.success("Xóa import thành công");
             reloadTable();
             reloadStats?.();
@@ -284,6 +270,19 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           className="custom-table"
           rowKey={(record) => record.id}
         />
+
+        {/* Load more — chỉ hiện khi còn data và không đang filter theo date */}
+        {hasMore && (
+          <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+            <Button
+              loading={tableLoading}
+              onClick={loadMore}
+              style={{ minWidth: 120 }}
+            >
+              Tải thêm
+            </Button>
+          </div>
+        )}
 
         <CommentDetails
           visible={isModalOpen}
