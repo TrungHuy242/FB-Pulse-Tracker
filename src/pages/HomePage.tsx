@@ -42,7 +42,7 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromTime, toTime, filterName]);
 
-  const { stats, loading: statsLoading, reloadStats } = useStats(effectiveFilter);
+  const { stats, prevStats, loading: statsLoading, reloadStats } = useStats(effectiveFilter);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
   // Aria patch cho Select combobox
@@ -174,6 +174,7 @@ export default function HomePage() {
         <Col xs={24} lg={8}>
           <StatsCards
             stats={stats}
+            prevStats={prevStats}
             loading={statsLoading}
             dateLabel={dateLabel}
           />

@@ -1,4 +1,4 @@
-import { Button, Modal, Upload, message, Progress, Input } from "antd";
+import { Button, Modal, Upload, message, Progress, Input, Steps } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
 import JSZip from "jszip";
@@ -70,6 +70,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
     const [innerFolderNames, setInnerFolderNames] = useState<string[]>([]);
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [progress, setProgress] = useState(0);
+    const [importStep, setImportStep] = useState<number>(-1); // -1 = idle
     const [accountNameFolder, setAccountNameFolder] = useState("");
     const [originalFolderName, setOriginalFolderName] = useState("");
 
@@ -83,6 +84,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       }
 
       showLoading("reading-zip");
+      setImportStep(0); // step 0: Đọc ZIP
       try {
         setParsedFiles([]);
         setProgress(0);
@@ -153,6 +155,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         }
         setInnerFolderNames(Array.from(innerSet));
 
+        setImportStep(1); // step 1: Phân tích JSON
         let loaded = 0;
         for (const entry of collected) {
           try {
@@ -242,6 +245,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
 
       try {
         showLoading("import-data");
+        setImportStep(2); // step 2: Tải lên Firestore
 
         for (const [groupName, files] of Object.entries(groupMap)) {
           // Tạo import document qua service layer
@@ -320,9 +324,15 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           });
         }
 
+        setImportStep(3); // step 3: Hoàn tất
+
+        // Brief pause so user sees "Hoàn tất" before modal closes
+        await new Promise((r) => setTimeout(r, 800));
+
         setParsedFiles([]);
         setFileList([]);
         setProgress(0);
+        setImportStep(-1);
         setAccountNameFolder("");
         setOriginalFolderName("");
         setOpen(false);
@@ -330,6 +340,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         message.success("Import thành công");
         onImportSuccess?.();
       } catch (error) {
+        setImportStep(-1);
         console.error(error);
         message.error("Import thất bại");
       } finally {
@@ -342,6 +353,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       setParsedFiles([]);
       setFileList([]);
       setProgress(0);
+      setImportStep(-1);
       setAccountNameFolder("");
       setOriginalFolderName("");
       setOpen(false);
@@ -409,8 +421,29 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           </div>
         </div>
 
-        {progress > 0 && (
-          <Progress percent={progress} style={{ marginTop: 12 }} />
+        {/* Import progress steps — only visible during active import */}
+        {importStep >= 0 && (
+          <div style={{ marginTop: 16 }}>
+            <Steps
+              current={importStep}
+              size="small"
+              status={importStep === 3 ? "finish" : "process"}
+              items={[
+                { title: "Đọc ZIP" },
+                { title: "Phân tích" },
+                { title: "Tải lên" },
+                { title: "Hoàn tất" },
+              ]}
+            />
+            {importStep < 2 && progress > 0 && (
+              <Progress
+                percent={progress}
+                size="small"
+                style={{ marginTop: 8 }}
+                strokeColor="#3ecf8e"
+              />
+            )}
+          </div>
         )}
       </Modal>
     );

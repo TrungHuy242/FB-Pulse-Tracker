@@ -20,6 +20,7 @@ import "../styles/accounts-table.scss";
 import { useImportComments } from "./AccountsTable/hooks/useImportComments";
 import { useImportReactions } from "./AccountsTable/hooks/useImportReactions";
 import { exportAllImportsToExcel } from "./exportAllImportsToExcel";
+import { exportAllImportsToCSV } from "./exportAllImportsToCSV";
 import { useLoading } from "@/contexts/LoadingContext";
 import { deleteImport } from "@/service/importService";
 import type { Timestamp } from "firebase/firestore";
@@ -251,6 +252,19 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
               }}
             >
               Xuất theo lựa chọn
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  showLoading("export-csv");
+                  await exportAllImportsToCSV(undefined, memoFilter);
+                } finally {
+                  closeLoading("export-csv");
+                }
+              }}
+              title="Xuất CSV (UTF-8, mở được trong Excel)"
+            >
+              CSV
             </Button>
           </Space>
         }
