@@ -1,11 +1,12 @@
 /**
  * CommentsPage — Trang phân tích bình luận sâu.
  * Tính năng: tìm kiếm toàn văn, lọc theo tác giả/nhóm/tài khoản/ngày,
- * danh sách phân trang, biểu đồ tần suất từ khóa, xuất CSV/JSON, phân tích AI.
+ * danh sách phân trang, biểu đồ tần suất từ khóa,
+ * xuất CSV / JSON / Excel, phân tích AI với badges per-row.
  */
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import {
-  Input, Button, Select, DatePicker, Table, Tag, Space,
+  Input, Button, Select, DatePicker, Table, Tag, Space, Tooltip,
   Row, Col, Skeleton, Empty, Typography, Dropdown,
 } from "antd";
 import {
@@ -13,6 +14,7 @@ import {
   RobotOutlined, CloseOutlined, DownOutlined, CheckCircleOutlined,
   ExclamationCircleOutlined, MinusCircleOutlined,
 } from "@ant-design/icons";
+import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useAllComments, type CommentFilter } from "@/hooks/useAllComments";
@@ -21,6 +23,7 @@ import { classifySentiment } from "@/utils/sentiment";
 import {
   analyzeCommentsWithAI,
   type AiSentimentResponse,
+  type AiSentimentResult,
 } from "@/service/aiSentimentService";
 import type { RichComment } from "@/hooks/useAllComments";
 
@@ -37,11 +40,52 @@ const PAGE_SIZE = 25;
 /** Max comments sent to AI per analysis request */
 const AI_BATCH_LIMIT = 200;
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+export const SENTIMENT_LABELS: Record<"positive" | "neutral" | "negative", string> = {
+  positive: "Tích cực",
+  neutral:  "Trung lập",
+  negative: "Tiêu cực",
+};
+
 // ── Format helpers ────────────────────────────────────────────────────────────
 
 function formatDateTime(ts: number): string {
   if (!ts) return "—";
   return new Date(ts * 1000).toLocaleString("vi-VN");
+}
+
+// ── Export row type (testable, pure) ──────────────────────────────────────────
+
+export interface CommentExportRow {
+  "Tác giả": string;
+  "Nội dung": string;
+  "Cảm xúc": string;
+  "Điểm cảm xúc": number;
+  "Nhóm": string;
+  "Tài khoản": string;
+  "Thời gian": string;
+}
+
+/**
+ * Chuyển RichComment[] thành rows dùng cho Excel/JSON/CSV.
+ * Pure function — testable độc lập với thư viện export.
+ */
+export function buildCommentExportRows(data: RichComment[]): CommentExportRow[] {
+  return data.map((c) => {
+    const { sentiment, score } = classifySentiment(c.content ?? "");
+    return {
+      "Tác giả": c.authorName ?? "",
+      "Nội dung": c.content ?? "",
+      "Cảm xúc": SENTIMENT_LABELS[sentiment],
+      "Điểm cảm xúc": Number(score.toFixed(2)),
+      "Nhóm": c.group ?? "",
+      "Tài khoản": c.accountName ?? "",
+      "Thời gian": c.commentTime
+        ? new Date(c.commentTime * 1000).toLocaleString("vi-VN")
+        : "",
+    };
+  });
 }
 
 // ── Export functions ──────────────────────────────────────────────────────────
@@ -100,6 +144,30 @@ export function exportCommentsToJSON(data: RichComment[]): void {
   a.download = `comments_export_${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Export danh sách bình luận ra file Excel (.xlsx).
+ * Dùng thư viện SheetJS (xlsx). Có cột widths và header tiếng Việt.
+ */
+export function exportCommentsToXLSX(data: RichComment[]): void {
+  const rows = buildCommentExportRows(data);
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+
+  // Column widths (chars)
+  worksheet["!cols"] = [
+    { wch: 22 },  // Tác giả
+    { wch: 65 },  // Nội dung
+    { wch: 12 },  // Cảm xúc
+    { wch: 14 },  // Điểm cảm xúc
+    { wch: 22 },  // Nhóm
+    { wch: 22 },  // Tài khoản
+    { wch: 22 },  // Thời gian
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Bình luận");
+  XLSX.writeFile(workbook, `comments_export_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // ── AI Results Panel ──────────────────────────────────────────────────────────
@@ -314,14 +382,23 @@ export default function CommentsPage() {
   const exportDisabled = loading || sentimentFiltered.length === 0;
 
   const exportMenuItems = [
-    { key: "csv",  label: "Xuất CSV (.csv)" },
-    { key: "json", label: "Xuất JSON (.json)" },
+    { key: "csv",   label: "Xuất CSV (.csv)" },
+    { key: "json",  label: "Xuất JSON (.json)" },
+    { key: "excel", label: "Xuất Excel (.xlsx)" },
   ];
 
   const handleExportMenu = useCallback(({ key }: { key: string }) => {
-    if (key === "csv")  exportCommentsToCSV(sentimentFiltered);
-    if (key === "json") exportCommentsToJSON(sentimentFiltered);
+    if (key === "csv")   exportCommentsToCSV(sentimentFiltered);
+    if (key === "json")  exportCommentsToJSON(sentimentFiltered);
+    if (key === "excel") exportCommentsToXLSX(sentimentFiltered);
   }, [sentimentFiltered]);
+
+  // ── AI result map (id → result) for per-row badges ────────────────────────
+
+  const aiResultMap = useMemo<Map<string, AiSentimentResult>>(() => {
+    if (!aiResults) return new Map();
+    return new Map(aiResults.results.map((r) => [r.id, r]));
+  }, [aiResults]);
 
   // ── Table columns ──────────────────────────────────────────────────────────
 
@@ -351,14 +428,48 @@ export default function CommentsPage() {
       title: "Cảm xúc",
       dataIndex: "content",
       key: "sentiment",
-      width: 100,
-      render: (v: string) => {
-        const { sentiment } = classifySentiment(v ?? "");
-        const cfg = {
+      width: 110,
+      render: (v: string, record: RichComment, idx: number) => {
+        // Check if we have an AI result for this row
+        const aiKey = `${record.importId ?? idx}-${record.commentTime ?? idx}`;
+        const aiResult = aiResultMap.get(aiKey);
+
+        const sentCfg = {
           positive: { label: "Tích cực", color: "#1a7f5e", bg: "rgba(62,207,142,0.10)" },
           neutral:  { label: "Trung lập", color: "#707070", bg: "#f4f4f4" },
           negative: { label: "Tiêu cực", color: "#dc2626", bg: "rgba(220,38,38,0.08)" },
-        }[sentiment];
+        };
+
+        if (aiResult) {
+          const cfg = sentCfg[aiResult.sentiment];
+          return (
+            <Tooltip
+              title={`Nguồn: ${aiResult.source === "ai" ? "Cloud Function AI" : "Rule-based fallback"}`}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <Tag style={{
+                  background: cfg.bg, border: "none",
+                  color: cfg.color, borderRadius: 4,
+                  fontSize: 11, fontWeight: 600,
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                }}>
+                  {cfg.label}
+                </Tag>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+                  color: aiResult.source === "ai" ? "#1a7f5e" : "#b45309",
+                  textTransform: "uppercase",
+                }}>
+                  {aiResult.source === "ai" ? "AI" : "Rule"}
+                </span>
+              </div>
+            </Tooltip>
+          );
+        }
+
+        // Fallback: rule-based
+        const { sentiment } = classifySentiment(v ?? "");
+        const cfg = sentCfg[sentiment];
         return (
           <Tag style={{
             background: cfg.bg, border: "none",
