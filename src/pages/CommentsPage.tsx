@@ -9,7 +9,7 @@ import {
   Row, Col, Skeleton, Empty, Typography,
 } from "antd";
 import {
-  SearchOutlined, ClearOutlined, CommentOutlined,
+  SearchOutlined, ClearOutlined, CommentOutlined, DownloadOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -32,6 +32,34 @@ const PAGE_SIZE = 25;
 function formatDateTime(ts: number): string {
   if (!ts) return "—";
   return new Date(ts * 1000).toLocaleString("vi-VN");
+}
+
+/**
+ * Export danh sách bình luận ra file CSV (UTF-8 BOM để Excel đọc được).
+ */
+function exportCommentsToCSV(data: RichComment[]): void {
+  const BOM = "﻿";
+  const header = ["Tác giả", "Nội dung", "Cảm xúc", "Nhóm", "Tài khoản", "Thời gian"];
+  const rows = data.map((c) => {
+    const { sentiment } = classifySentiment(c.content ?? "");
+    const sentimentLabel = { positive: "Tích cực", neutral: "Trung lập", negative: "Tiêu cực" }[sentiment];
+    return [
+      c.authorName ?? "",
+      (c.content ?? "").replace(/"/g, '""'),
+      sentimentLabel,
+      c.group ?? "",
+      c.accountName ?? "",
+      formatDateTime(c.commentTime),
+    ].map((v) => `"${v}"`).join(",");
+  });
+  const csv = BOM + [header.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `comments_export_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function CommentsPage() {
@@ -266,6 +294,15 @@ export default function CommentsPage() {
       </Button>
       <Button size="small" icon={<ClearOutlined />} onClick={handleClear}>
         Xóa
+      </Button>
+      <Button
+        size="small"
+        icon={<DownloadOutlined />}
+        disabled={loading || sentimentFiltered.length === 0}
+        onClick={() => exportCommentsToCSV(sentimentFiltered)}
+        title="Xuất danh sách bình luận hiện tại ra CSV"
+      >
+        Xuất CSV
       </Button>
     </Space>
   );

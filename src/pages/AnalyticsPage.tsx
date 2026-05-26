@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAllEngagement } from "@/hooks/useAllEngagement";
 import { getAccountNames } from "@/service/importService";
 import type { StatsFilter } from "@/types";
+import { DatePresets } from "@/components/DatePresets";
 
 // Lazy-load heavy chart components — splits them into separate JS chunks
 const TimelineChart      = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
@@ -90,6 +91,17 @@ export default function AnalyticsPage() {
     setRefreshSignal((s) => s + 1);
   };
 
+  /** Khi user chọn preset: cập nhật range picker + apply filter ngay */
+  const handlePresetApply = (from: dayjs.Dayjs, to: dayjs.Dayjs) => {
+    setRange([from, to]);
+    setAppliedFilter({
+      from: from.startOf("day").toDate(),
+      to: to.endOf("day").toDate(),
+      name: selectedAccounts?.length ? selectedAccounts : undefined,
+    });
+    setRefreshSignal((s) => s + 1);
+  };
+
   const handleClear = () => {
     setRange(null);
     setSelectedAccounts(undefined);
@@ -99,6 +111,12 @@ export default function AnalyticsPage() {
 
   const topBar = (
     <Space size={6} wrap>
+      <DatePresets
+        onApply={handlePresetApply}
+        active={range}
+        size="small"
+      />
+
       <DatePicker.RangePicker
         value={range}
         size="small"

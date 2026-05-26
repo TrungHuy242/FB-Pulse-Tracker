@@ -1,9 +1,22 @@
-import React, { useEffect, useState } from "react";
+/**
+ * AdminPage — Quản lý tài khoản được phép đăng nhập.
+ * Chỉ dành cho admin (role === 1).
+ *
+ * Tính năng:
+ *  - Danh sách tài khoản (email, tên, role badge)
+ *  - Thêm / sửa / xóa tài khoản
+ *  - Tìm kiếm client-side theo email hoặc tên
+ *  - Xóa toàn bộ Import (double confirm, chỉ admin)
+ */
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "@/styles/admin.scss";
-import { Button, Table, Modal, Input, Space, message, Select } from "antd";
+import { Button, Table, Modal, Input, Space, message, Select, Tag, Typography } from "antd";
 import { useLoading } from "@/contexts/LoadingContext";
-import { PlusOutlined, EditOutlined, DeleteOutlined, BarChartOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined,
+  BarChartOutlined, SearchOutlined, ExclamationCircleOutlined,
+} from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getAllowedAccounts,
@@ -11,7 +24,10 @@ import {
   updateAllowedAccount,
   deleteAllowedAccount,
 } from "@/service/accountService";
+import { deleteAllImports } from "@/service/importService";
 import type { AllowedAccount } from "@/types";
+
+const { Text } = Typography;
 
 const AdminPage: React.FC = () => {
   const [items, setItems] = useState<AllowedAccount[]>([]);
@@ -21,10 +37,10 @@ const AdminPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<0 | 1>(0);
+  const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
   const { user } = useAuth();
-
   const { showLoading, closeLoading } = useLoading();
 
   const isEditingSelf = !!(
@@ -51,12 +67,22 @@ const AdminPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Lọc danh sách theo search query (client-side) */
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        (item.email ?? "").toLowerCase().includes(q) ||
+        (item.displayName ?? "").toLowerCase().includes(q)
+    );
+  }, [items, searchQuery]);
+
   const openAdd = () => {
     if (!user || user.role !== 1) {
       message.error("Bạn không có quyền thực hiện hành động này.");
       return;
     }
-
     setEditing(null);
     setEmail("");
     setDisplayName("");
@@ -69,7 +95,6 @@ const AdminPage: React.FC = () => {
       message.error("Bạn không có quyền thực hiện hành động này.");
       return;
     }
-
     setEditing(row);
     setEmail(row.email || "");
     setDisplayName(row.displayName || "");
@@ -147,9 +172,90 @@ const AdminPage: React.FC = () => {
     });
   };
 
+  /** Xóa toàn bộ imports — double confirm, chỉ admin */
+  const handleDeleteAllImports = () => {
+    if (!user || user.role !== 1) {
+      message.error("Chỉ admin mới có quyền xóa tất cả import.");
+      return;
+    }
+    // Confirm lần 1
+    Modal.confirm({
+      title: "Xóa toàn bộ dữ liệu Import?",
+      icon: <ExclamationCircleOutlined />,
+      content: "Hành động này sẽ xóa TOÀN BỘ imports, bình luận và cảm xúc. Bước tiếp theo sẽ yêu cầu xác nhận lần nữa.",
+      okText: "Tiếp tục",
+      okType: "danger",
+      cancelText: "Hủy",
+      centered: true,
+      onOk() {
+        // Confirm lần 2
+        Modal.confirm({
+          title: "Xác nhận lần cuối — không thể hoàn tác",
+          icon: <ExclamationCircleOutlined />,
+          content: (
+            <div>
+              <p style={{ color: "#dc2626", fontWeight: 600 }}>⚠ Toàn bộ dữ liệu sẽ bị xóa vĩnh viễn.</p>
+              <p style={{ color: "#5a5a5a", fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
+            </div>
+          ),
+          okText: "Xóa tất cả",
+          okType: "danger",
+          cancelText: "Hủy",
+          centered: true,
+          onOk: async () => {
+            showLoading("delete-all-imports");
+            try {
+              await deleteAllImports();
+              message.success("Đã xóa toàn bộ dữ liệu Import");
+            } catch (err) {
+              console.error("Xóa tất cả import thất bại:", err);
+              message.error("Xóa thất bại");
+            } finally {
+              closeLoading("delete-all-imports");
+            }
+          },
+        });
+      },
+    });
+  };
+
   const columns = [
     { title: "TÀI KHOẢN EMAIL", dataIndex: "email", key: "email" },
     { title: "TÊN ADMIN", dataIndex: "displayName", key: "displayName" },
+    {
+      title: "QUYỀN",
+      dataIndex: "role",
+      key: "role",
+      width: 120,
+      render: (r: number) =>
+        r === 1 ? (
+          <Tag
+            style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              background: "rgba(62,207,142,0.12)",
+              border: "none",
+              color: "#1a7f5e",
+              borderRadius: 4,
+            }}
+          >
+            Admin
+          </Tag>
+        ) : (
+          <Tag
+            style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              background: "#f4f4f4",
+              border: "none",
+              color: "#707070",
+              borderRadius: 4,
+            }}
+          >
+            Read-only
+          </Tag>
+        ),
+    },
     ...(user?.role === 1
       ? [
           {
@@ -189,19 +295,51 @@ const AdminPage: React.FC = () => {
                 <BarChartOutlined style={{ fontSize: 16 }} />
               </div>
             </div>
-            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: "#171717", letterSpacing: 0 }}>FB Pulse Tracker — Admin</h1>
+            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: "#171717", letterSpacing: 0 }}>
+              FB Pulse Tracker — Admin
+            </h1>
           </div>
 
-          {user && user.role === 1 ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-              Thêm tài khoản
-            </Button>
-          ) : null}
+          <Space size={8}>
+            {user && user.role === 1 && (
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteAllImports}
+              >
+                Xóa tất cả Import
+              </Button>
+            )}
+            {user && user.role === 1 && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+                Thêm tài khoản
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        {/* Search bar */}
+        <div style={{ marginBottom: 12 }}>
+          <Input
+            prefix={<SearchOutlined style={{ color: "#9a9a9a" }} />}
+            placeholder="Tìm theo email hoặc tên..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            allowClear
+            size="small"
+            style={{ maxWidth: 300 }}
+          />
+          {searchQuery && (
+            <Text style={{ marginLeft: 8, fontSize: 12, color: "#8a8a8a" }}>
+              {filteredItems.length} / {items.length} tài khoản
+            </Text>
+          )}
         </div>
 
         <Table
           columns={columns}
-          dataSource={items}
+          dataSource={filteredItems}
           rowKey={(r) => r.id}
           loading={loading}
           pagination={false}

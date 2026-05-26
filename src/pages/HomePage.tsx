@@ -15,6 +15,7 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { getAccountNames } from "@/service/importService";
 import { useEffect } from "react";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
+import { DatePresets } from "@/components/DatePresets";
 
 interface AccountsTableRef {
   reloadTable: () => void;
@@ -104,6 +105,16 @@ export default function HomePage() {
     setAdvancedFilter({ from, to, name: nameToSend });
   };
 
+  /** Khi user chọn preset: cập nhật range picker + apply filter ngay */
+  const handlePresetApply = (from: dayjs.Dayjs, to: dayjs.Dayjs) => {
+    setRange([from, to]);
+    setAdvancedFilter({
+      from: from.startOf("day").toDate(),
+      to: to.endOf("day").toDate(),
+      name: selectedAccounts?.length ? selectedAccounts : undefined,
+    });
+  };
+
   const handleClear = () => {
     setRange(null);
     setSelectedAccounts(undefined);
@@ -120,6 +131,12 @@ export default function HomePage() {
       >
         Import
       </Button>
+
+      <DatePresets
+        onApply={handlePresetApply}
+        active={range}
+        size="small"
+      />
 
       <DatePicker.RangePicker
         value={range}

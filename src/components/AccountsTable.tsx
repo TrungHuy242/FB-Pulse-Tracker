@@ -25,6 +25,7 @@ import { exportAllImportsToJSON } from "./exportAllImportsToJSON";
 import { clearCacheByPrefix } from "@/service/queryCache";
 import { useLoading } from "@/contexts/LoadingContext";
 import { deleteImport } from "@/service/importService";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Timestamp } from "firebase/firestore";
 
 export interface AccountsTableRef {
@@ -64,6 +65,7 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
       "filter-accounts"
     );
     const { showLoading, closeLoading } = useLoading();
+    const { user } = useAuth();
 
     useImperativeHandle(ref, () => ({ reloadTable }));
 
@@ -89,6 +91,39 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
     useEffect(() => {
       setSelectedRowKeys([]);
     }, [tableData]);
+
+    /** Xóa hàng loạt các import đã chọn (chỉ admin) */
+    const handleBulkDelete = () => {
+      if (selectedRowKeys.length === 0) return;
+      Modal.confirm({
+        title: `Xóa ${selectedRowKeys.length} import đã chọn?`,
+        icon: <ExclamationCircleOutlined />,
+        content: "Toàn bộ bình luận và cảm xúc liên quan cũng sẽ bị xóa. Không thể hoàn tác.",
+        okText: "Xóa tất cả",
+        okType: "danger",
+        cancelText: "Hủy",
+        centered: true,
+        onOk: async () => {
+          showLoading("bulk-delete");
+          try {
+            for (const id of selectedRowKeys) {
+              await deleteImport(id);
+            }
+            clearCacheByPrefix("imports:");
+            message.success(`Đã xóa ${selectedRowKeys.length} import`);
+            setSelectedRowKeys([]);
+            reloadTable();
+            reloadStats?.();
+            onDataChange?.();
+          } catch (err) {
+            console.error("Xóa hàng loạt thất bại:", err);
+            message.error("Xóa hàng loạt thất bại");
+          } finally {
+            closeLoading("bulk-delete");
+          }
+        },
+      });
+    };
 
     const handleDeleteImport = async (importId: string) => {
       let modalRef: ReturnType<typeof Modal.confirm> | null = null;
@@ -228,6 +263,16 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
         className="accounts-table-card"
         extra={
           <Space size={8}>
+            {user?.role === 1 && selectedRowKeys.length > 0 && (
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={handleBulkDelete}
+              >
+                Xóa đã chọn ({selectedRowKeys.length})
+              </Button>
+            )}
             <Button
               type="primary"
               icon={<FolderOpenOutlined />}
