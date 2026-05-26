@@ -1,16 +1,19 @@
 /**
  * ImportsPage — Quản lý danh sách imports.
  * Cho phép: xem, lọc, xuất Excel, xóa từng import hoặc tất cả.
+ * Real-time: hiển thị banner "Có dữ liệu mới" khi import mới xuất hiện
+ * từ tab/thiết bị khác (không ảnh hưởng đến pagination hiện tại).
  */
 import { useRef, useState, useMemo, useEffect, useCallback } from "react";
-import { Button, DatePicker, Select, Space, Tooltip } from "antd";
-import { FileTextOutlined } from "@ant-design/icons";
+import { Alert, Button, DatePicker, Select, Space, Tooltip } from "antd";
+import { FileTextOutlined, SyncOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { AccountsTable } from "@/components/AccountsTable";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
 import { PrintReportButton } from "@/components/PrintReportButton";
 import { getAccountNames } from "@/service/importService";
+import { useRealtimeImports } from "@/hooks/useRealtimeImports";
 import type { StatsFilter } from "@/types";
 
 interface AccountsTableRef {
@@ -27,6 +30,9 @@ export default function ImportsPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | undefined>(undefined);
   const [appliedFilter, setAppliedFilter] = useState<StatsFilter>({});
   const [refreshSignal, setRefreshSignal] = useState(0);
+
+  // Real-time: phát hiện import mới từ tab/thiết bị khác
+  const { hasNewData, clearNewData } = useRealtimeImports(true);
 
   const fromTime = appliedFilter.from?.getTime() ?? null;
   const toTime = appliedFilter.to?.getTime() ?? null;
@@ -76,6 +82,13 @@ export default function ImportsPage() {
   const handleImportSuccess = async () => {
     await refreshAccounts();
     tableRef.current?.reloadTable();
+    clearNewData(); // reset realtime flag sau khi user tự import
+    setRefreshSignal((s) => s + 1);
+  };
+
+  const handleRealtimeRefresh = () => {
+    tableRef.current?.reloadTable();
+    clearNewData();
     setRefreshSignal((s) => s + 1);
   };
 
@@ -154,6 +167,30 @@ export default function ImportsPage() {
 
   return (
     <AppLayout title="Imports" topBar={topBar}>
+      {/* Banner thông báo khi có dữ liệu mới từ tab/thiết bị khác */}
+      {hasNewData && (
+        <Alert
+          type="info"
+          showIcon
+          message={
+            <span>
+              Có dữ liệu mới được import.{" "}
+              <Button
+                type="link"
+                size="small"
+                icon={<SyncOutlined />}
+                onClick={handleRealtimeRefresh}
+                style={{ padding: 0, height: "auto", lineHeight: "inherit" }}
+              >
+                Tải lại
+              </Button>
+            </span>
+          }
+          closable
+          onClose={clearNewData}
+          style={{ marginBottom: 12 }}
+        />
+      )}
       <AccountsTable
         ref={tableRef}
         filter={effectiveFilter}

@@ -1,5 +1,17 @@
-import { Button, Modal, Upload, message, Progress, Input, Steps } from "antd";
-import { UploadOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Modal,
+  Upload,
+  message,
+  Progress,
+  Steps,
+  Table,
+  Input,
+  Typography,
+  Tag,
+  Tooltip,
+} from "antd";
+import { UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
 import JSZip from "jszip";
 import { forwardRef, useImperativeHandle, useState } from "react";
@@ -13,14 +25,43 @@ import {
   addReactionChunk,
   finalizeImport,
 } from "@/service/importService";
+import {
+  requestNotificationPermission,
+  fireNotification,
+} from "@/utils/notification";
 
 const COMMENT_CHUNK_SIZE = 700;
 const REACTION_CHUNK_SIZE = 2000;
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface ParsedFile {
   name: string;
   data: unknown;
   size: number;
+}
+
+/**
+ * Một ZIP file đã parse — chứa thông tin preview và dữ liệu thực tế.
+ * Nhiều ZipJob = batch import.
+ */
+interface ZipJob {
+  /** Key duy nhất (fileName + timestamp) */
+  id: string;
+  /** Tên file .zip gốc */
+  fileName: string;
+  /** Tên tài khoản — do user chỉnh sửa hoặc lấy từ root folder */
+  accountName: string;
+  /** Tên folder gốc trong ZIP (không thể sửa) */
+  originalFolderName: string;
+  /** JSON files đã parse từ ZIP */
+  parsedFiles: ParsedFile[];
+  /** Tên các inner folders (dùng để nhóm khi upload) */
+  innerFolderNames: string[];
+  /** Số bình luận ước tính (preview) */
+  commentsPreview: number;
+  /** Số cảm xúc ước tính (preview) */
+  reactionsPreview: number;
 }
 
 export interface FormDrawerHandle {
@@ -63,36 +104,113 @@ interface ReactionRawItem {
   fbid?: string;
 }
 
+// ── Component ────────────────────────────────────────────────────────────────
+
 export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
   ({ onImportSuccess }, ref) => {
     const [open, setOpen] = useState(false);
-    const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([]);
-    const [innerFolderNames, setInnerFolderNames] = useState<string[]>([]);
+    /** Danh sách ZIP jobs (batch import) */
+    const [zipJobs, setZipJobs] = useState<ZipJob[]>([]);
+    /** File list cho antd Upload component */
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [progress, setProgress] = useState(0);
     const [importStep, setImportStep] = useState<number>(-1); // -1 = idle
-    const [accountNameFolder, setAccountNameFolder] = useState("");
-    const [originalFolderName, setOriginalFolderName] = useState("");
 
     const { showLoading, closeLoading } = useLoading();
 
+    /* ========================= REACTION HELPERS ========================= */
+    const isReactionItem = (item: unknown): item is ReactionRawItem =>
+      !!item &&
+      typeof item === "object" &&
+      Array.isArray((item as ReactionRawItem).label_values) &&
+      ((item as ReactionRawItem).label_values ?? []).some((lv) =>
+        ["Cảm xúc", "URL", "Tên"].includes(lv?.label)
+      );
+
+    const getNameFromDict = (arr: ReactionLabelValue[]): string => {
+      for (const i of arr) {
+        if (i.label === "Tên" && i.value) return i.value;
+        if (Array.isArray(i.dict)) {
+          const nested = getNameFromDict(i.dict);
+          if (nested) return nested;
+        }
+      }
+      return "";
+    };
+
+    const mapReactionItem = (item: ReactionRawItem) => {
+      const lvs = item.label_values ?? [];
+      const getByLabel = (label: string) => lvs.find((lv) => lv.label === label);
+      return {
+        reaction: getByLabel("Cảm xúc")?.value ?? "",
+        linkPost: getByLabel("URL")?.href ?? "",
+        commentAuthorName: getNameFromDict(lvs) || "Chưa xác định",
+        ownerName: getByLabel("Tên")?.value ?? "Chưa xác định",
+        reactionTime: item.timestamp ?? 0,
+        fbid: item.fbid ?? "",
+      };
+    };
+
+    /* ========================= PREVIEW COUNTER ========================= */
+    /**
+     * Tính trước số lượng comments/reactions từ parsedFiles.
+     * Dùng để hiển thị preview TRƯỚC khi upload lên Firestore.
+     */
+    const computePreviewCounts = (
+      files: ParsedFile[]
+    ): { commentsPreview: number; reactionsPreview: number } => {
+      let commentsPreview = 0;
+      let reactionsPreview = 0;
+
+      for (const file of files) {
+        const data = file.data;
+        if (!data || typeof data !== "object") continue;
+
+        const d = data as Record<string, unknown>;
+        const commentSource =
+          (Array.isArray(d.comments_v2) ? d.comments_v2 : null) ??
+          (Array.isArray(d.group_comments_v2) ? d.group_comments_v2 : null);
+
+        if (commentSource) {
+          commentsPreview += buildCommentItems(
+            commentSource as CommentEventItem[]
+          ).length;
+          continue;
+        }
+
+        if (Array.isArray(data)) {
+          reactionsPreview += (data as unknown[]).filter(isReactionItem).length;
+        }
+      }
+
+      return { commentsPreview, reactionsPreview };
+    };
+
     /* ========================= ZIP UPLOAD HANDLER ========================= */
+    /**
+     * Xử lý từng file ZIP được chọn.
+     * Được gọi cho mỗi file khi Upload ở chế độ multiple.
+     */
     const handleZipUpload = async (file: File) => {
       if (!file.name.endsWith(".zip")) {
-        message.error("Chỉ hỗ trợ file .zip");
+        message.error(`${file.name}: chỉ hỗ trợ file .zip`);
         return Upload.LIST_IGNORE;
       }
 
-      showLoading("reading-zip");
-      setImportStep(0); // step 0: Đọc ZIP
-      try {
-        setParsedFiles([]);
-        setProgress(0);
+      // Kiểm tra duplicate (cùng tên file)
+      const isDuplicate = fileList.some((f) => f.uid === file.name);
+      if (isDuplicate) {
+        message.warning(`${file.name} đã được thêm`);
+        return Upload.LIST_IGNORE;
+      }
 
+      showLoading(`reading-zip-${file.name}`);
+      try {
         const zip = await JSZip.loadAsync(file);
         const collected: { name: string; content: string }[] = [];
         const collectedDirs: string[] = [];
 
+        // ── Đệ quy đọc ZIP (kể cả nested ZIP) ──
         const collectFromZip = async (z: JSZip, prefix = "") => {
           const files = Object.values(z.files);
           for (const f of files) {
@@ -129,21 +247,20 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         await collectFromZip(zip);
 
         if (!collected.length && !collectedDirs.length) {
-          message.error("ZIP không chứa file JSON");
+          message.error(`${file.name}: ZIP không chứa file JSON`);
           return Upload.LIST_IGNORE;
         }
 
+        // ── Xác định tên folder gốc ──
         const rootFolderName = collected.length
           ? collected[0].name.includes("/")
             ? collected[0].name.split("/")[0]
             : file.name.replace(/\.zip$/i, "")
-          : collectedDirs[0].includes("/")
+          : collectedDirs[0]?.includes("/")
           ? collectedDirs[0].split("/")[0]
           : file.name.replace(/\.zip$/i, "");
 
-        setOriginalFolderName(rootFolderName);
-        setAccountNameFolder(rootFolderName);
-
+        // ── Inner folders (dùng để nhóm khi upload) ──
         const innerSet = new Set<string>();
         for (const c of collected) {
           const parts = c.name.split("/").filter(Boolean);
@@ -153,27 +270,46 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           const parts = d.split("/").filter(Boolean);
           if (parts.length >= 2) innerSet.add(parts[1]);
         }
-        setInnerFolderNames(Array.from(innerSet));
 
-        setImportStep(1); // step 1: Phân tích JSON
-        let loaded = 0;
+        // ── Parse JSON files ──
+        let parseProgress = 0;
+        const parsedFiles: ParsedFile[] = [];
         for (const entry of collected) {
           try {
             const parsed = decodeFacebookObject(
               JSON.parse(entry.content)
             ) as unknown;
-            setParsedFiles((prev) => [
-              ...prev,
-              { name: entry.name, data: parsed, size: entry.content.length },
-            ]);
+            parsedFiles.push({
+              name: entry.name,
+              data: parsed,
+              size: entry.content.length,
+            });
           } catch {
             console.warn(`Skip invalid JSON: ${entry.name}`);
           }
-          loaded++;
-          setProgress(Math.round((loaded / collected.length) * 100));
+          parseProgress++;
+          setProgress(Math.round((parseProgress / collected.length) * 100));
         }
 
-        setFileList([
+        // ── Tính preview counts ──
+        const { commentsPreview, reactionsPreview } =
+          computePreviewCounts(parsedFiles);
+
+        // ── Tạo ZipJob và thêm vào danh sách ──
+        const newJob: ZipJob = {
+          id: `${file.name}-${Date.now()}`,
+          fileName: file.name,
+          accountName: rootFolderName,
+          originalFolderName: rootFolderName,
+          parsedFiles,
+          innerFolderNames: Array.from(innerSet),
+          commentsPreview,
+          reactionsPreview,
+        };
+
+        setZipJobs((prev) => [...prev, newJob]);
+        setFileList((prev) => [
+          ...prev,
           {
             uid: file.name,
             name: file.name,
@@ -182,146 +318,132 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           },
         ]);
 
-        message.success(`Đã đọc ${collected.length} file JSON`);
+        message.success(
+          `${file.name}: ${commentsPreview} bình luận, ${reactionsPreview} cảm xúc`
+        );
         return false;
+      } catch (err) {
+        console.error("Lỗi đọc ZIP:", err);
+        message.error(`${file.name}: lỗi đọc file`);
+        return Upload.LIST_IGNORE;
       } finally {
-        closeLoading("reading-zip");
+        closeLoading(`reading-zip-${file.name}`);
+        setProgress(0);
       }
-    };
-
-    /* ========================= REACTION HELPERS ========================= */
-    const isReactionItem = (item: unknown): item is ReactionRawItem =>
-      !!item &&
-      typeof item === "object" &&
-      Array.isArray((item as ReactionRawItem).label_values) &&
-      ((item as ReactionRawItem).label_values ?? []).some((lv) =>
-        ["Cảm xúc", "URL", "Tên"].includes(lv?.label)
-      );
-
-    const getNameFromDict = (arr: ReactionLabelValue[]): string => {
-      for (const i of arr) {
-        if (i.label === "Tên" && i.value) return i.value;
-        if (Array.isArray(i.dict)) {
-          const nested = getNameFromDict(i.dict);
-          if (nested) return nested;
-        }
-      }
-      return "";
-    };
-
-    const mapReactionItem = (item: ReactionRawItem) => {
-      const lvs = item.label_values ?? [];
-      const getByLabel = (label: string) => lvs.find((lv) => lv.label === label);
-      return {
-        reaction: getByLabel("Cảm xúc")?.value ?? "",
-        linkPost: getByLabel("URL")?.href ?? "",
-        commentAuthorName: getNameFromDict(lvs) || "Chưa xác định",
-        ownerName: getByLabel("Tên")?.value ?? "Chưa xác định",
-        reactionTime: item.timestamp ?? 0,
-        fbid: item.fbid ?? "",
-      };
     };
 
     /* ========================= CONFIRM IMPORT ========================= */
     const handleConfirm = async () => {
-      if (!parsedFiles.length) return;
+      if (!zipJobs.length) return;
 
-      const groupMap: Record<string, ParsedFile[]> = {};
-
-      for (const f of parsedFiles) {
-        const parts = f.name.split("/").filter(Boolean);
-        const groupName =
-          parts.length >= 2
-            ? parts[1]
-            : accountNameFolder?.trim() || originalFolderName || "Unknown";
-
-        if (!groupMap[groupName]) groupMap[groupName] = [];
-        groupMap[groupName].push(f);
-      }
-
-      for (const name of innerFolderNames) {
-        if (!groupMap[name]) groupMap[name] = [];
-      }
+      // Yêu cầu quyền thông báo (chỉ hỏi một lần)
+      await requestNotificationPermission();
 
       try {
         showLoading("import-data");
-        setImportStep(2); // step 2: Tải lên Firestore
+        setImportStep(0); // step 0: bắt đầu
 
-        for (const [groupName, files] of Object.entries(groupMap)) {
-          // Tạo import document qua service layer
-          const importRef = await createImport({
-            totalFiles: files.length,
-            status: "processing",
-          });
+        for (let jobIdx = 0; jobIdx < zipJobs.length; jobIdx++) {
+          const job = zipJobs[jobIdx];
+          setImportStep(1); // step 1: Phân tích (đã xong ở parse phase, chỉ hiển thị)
 
-          let commentsCount = 0;
-          let reactionsCount = 0;
-          const allComments: ReturnType<typeof buildCommentItems> = [];
-          const allReactions: ReturnType<typeof mapReactionItem>[] = [];
+          // ── Nhóm files theo inner folder ──
+          const groupMap: Record<string, ParsedFile[]> = {};
 
-          for (const file of files) {
-            const data = file.data;
-            if (!data || typeof data !== "object") continue;
+          for (const f of job.parsedFiles) {
+            const parts = f.name.split("/").filter(Boolean);
+            const groupName =
+              parts.length >= 2
+                ? parts[1]
+                : job.accountName?.trim() || job.originalFolderName || "Unknown";
 
-            const d = data as Record<string, unknown>;
-            const commentSource =
-              (Array.isArray(d.comments_v2) ? d.comments_v2 : null) ??
-              (Array.isArray(d.group_comments_v2) ? d.group_comments_v2 : null);
-
-            if (commentSource) {
-              const comments = buildCommentItems(
-                commentSource as CommentEventItem[]
-              );
-              allComments.push(...comments);
-              commentsCount += comments.length;
-              continue;
-            }
-
-            if (Array.isArray(data)) {
-              const reactions = (data as unknown[])
-                .filter(isReactionItem)
-                .map(mapReactionItem);
-              if (!reactions.length) continue;
-              allReactions.push(...reactions);
-              reactionsCount += reactions.length;
-            }
+            if (!groupMap[groupName]) groupMap[groupName] = [];
+            groupMap[groupName].push(f);
           }
 
-          // Lưu comment chunks qua service layer
-          const commentChunks = chunkArray(allComments, COMMENT_CHUNK_SIZE);
-          if (commentChunks.length === 0) {
-            await addCommentChunk(importRef.id, { index: 0, items: [], count: 0 });
-          } else {
-            for (let i = 0; i < commentChunks.length; i++) {
-              await addCommentChunk(importRef.id, {
-                index: i,
-                items: commentChunks[i],
-                count: commentChunks[i].length,
-              });
-            }
+          for (const name of job.innerFolderNames) {
+            if (!groupMap[name]) groupMap[name] = [];
           }
 
-          // Lưu reaction chunks qua service layer
-          const reactionChunks = chunkArray(allReactions, REACTION_CHUNK_SIZE);
-          if (reactionChunks.length === 0) {
-            await addReactionChunk(importRef.id, { index: 0, items: [], count: 0 });
-          } else {
-            for (let i = 0; i < reactionChunks.length; i++) {
-              await addReactionChunk(importRef.id, {
-                index: i,
-                items: reactionChunks[i],
-                count: reactionChunks[i].length,
-              });
-            }
-          }
+          setImportStep(2); // step 2: Tải lên Firestore
 
-          // Hoàn tất import qua service layer
-          await finalizeImport(importRef.id, {
-            accountName: groupName,
-            commentsCount,
-            reactionsCount,
-            status: "completed",
-          });
+          for (const [groupName, files] of Object.entries(groupMap)) {
+            // Tạo import document qua service layer
+            const importRef = await createImport({
+              totalFiles: files.length,
+              status: "processing",
+            });
+
+            let commentsCount = 0;
+            let reactionsCount = 0;
+            const allComments: ReturnType<typeof buildCommentItems> = [];
+            const allReactions: ReturnType<typeof mapReactionItem>[] = [];
+
+            for (const file of files) {
+              const data = file.data;
+              if (!data || typeof data !== "object") continue;
+
+              const d = data as Record<string, unknown>;
+              const commentSource =
+                (Array.isArray(d.comments_v2) ? d.comments_v2 : null) ??
+                (Array.isArray(d.group_comments_v2) ? d.group_comments_v2 : null);
+
+              if (commentSource) {
+                const comments = buildCommentItems(
+                  commentSource as CommentEventItem[]
+                );
+                allComments.push(...comments);
+                commentsCount += comments.length;
+                continue;
+              }
+
+              if (Array.isArray(data)) {
+                const reactions = (data as unknown[])
+                  .filter(isReactionItem)
+                  .map(mapReactionItem);
+                if (!reactions.length) continue;
+                allReactions.push(...reactions);
+                reactionsCount += reactions.length;
+              }
+            }
+
+            // Lưu comment chunks qua service layer
+            const commentChunks = chunkArray(allComments, COMMENT_CHUNK_SIZE);
+            if (commentChunks.length === 0) {
+              await addCommentChunk(importRef.id, { index: 0, items: [], count: 0 });
+            } else {
+              for (let i = 0; i < commentChunks.length; i++) {
+                await addCommentChunk(importRef.id, {
+                  index: i,
+                  items: commentChunks[i],
+                  count: commentChunks[i].length,
+                });
+              }
+            }
+
+            // Lưu reaction chunks qua service layer
+            const reactionChunks = chunkArray(allReactions, REACTION_CHUNK_SIZE);
+            if (reactionChunks.length === 0) {
+              await addReactionChunk(importRef.id, { index: 0, items: [], count: 0 });
+            } else {
+              for (let i = 0; i < reactionChunks.length; i++) {
+                await addReactionChunk(importRef.id, {
+                  index: i,
+                  items: reactionChunks[i],
+                  count: reactionChunks[i].length,
+                });
+              }
+            }
+
+            // Hoàn tất import — dùng accountName của job (do user đã chỉnh)
+            // groupName chỉ là sub-folder name, nhưng accountName là tên chính
+            await finalizeImport(importRef.id, {
+              accountName: job.accountName?.trim() || groupName,
+              commentsCount,
+              reactionsCount,
+              status: "completed",
+            });
+          }
         }
 
         setImportStep(3); // step 3: Hoàn tất
@@ -329,15 +451,28 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         // Brief pause so user sees "Hoàn tất" before modal closes
         await new Promise((r) => setTimeout(r, 800));
 
-        setParsedFiles([]);
-        setFileList([]);
-        setProgress(0);
-        setImportStep(-1);
-        setAccountNameFolder("");
-        setOriginalFolderName("");
-        setOpen(false);
+        // Thông báo trình duyệt khi import hoàn thành
+        const totalJobs = zipJobs.length;
+        const totalComments = zipJobs.reduce(
+          (sum, j) => sum + j.commentsPreview,
+          0
+        );
+        const totalReactions = zipJobs.reduce(
+          (sum, j) => sum + j.reactionsPreview,
+          0
+        );
+        fireNotification("Import hoàn tất", {
+          body:
+            totalJobs === 1
+              ? `${zipJobs[0].accountName}: ${totalComments} bình luận, ${totalReactions} cảm xúc`
+              : `${totalJobs} tài khoản — ${totalComments} bình luận, ${totalReactions} cảm xúc`,
+          tag: "import-success",
+        });
 
-        message.success("Import thành công");
+        resetState();
+        message.success(
+          `Import thành công ${totalJobs} tài khoản`
+        );
         onImportSuccess?.();
       } catch (error) {
         setImportStep(-1);
@@ -348,15 +483,32 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       }
     };
 
-    /* ========================= MODAL CONTROL ========================= */
-    const handleModalClose = () => {
-      setParsedFiles([]);
+    /* ========================= STATE HELPERS ========================= */
+    const resetState = () => {
+      setZipJobs([]);
       setFileList([]);
       setProgress(0);
       setImportStep(-1);
-      setAccountNameFolder("");
-      setOriginalFolderName("");
       setOpen(false);
+    };
+
+    const removeJob = (jobId: string) => {
+      const job = zipJobs.find((j) => j.id === jobId);
+      if (job) {
+        setZipJobs((prev) => prev.filter((j) => j.id !== jobId));
+        setFileList((prev) => prev.filter((f) => f.uid !== job.fileName));
+      }
+    };
+
+    const updateJobName = (jobId: string, newName: string) => {
+      setZipJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, accountName: newName } : j))
+      );
+    };
+
+    /* ========================= MODAL CONTROL ========================= */
+    const handleModalClose = () => {
+      resetState();
     };
 
     useImperativeHandle(ref, () => ({
@@ -364,37 +516,88 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       close: () => handleModalClose(),
     }));
 
+    /* ========================= PREVIEW TABLE ========================= */
+    const previewColumns = [
+      {
+        title: "Tên tài khoản",
+        dataIndex: "accountName",
+        key: "accountName",
+        render: (name: string, record: ZipJob) => (
+          <Input
+            size="small"
+            value={name}
+            onChange={(e) => updateJobName(record.id, e.target.value)}
+            placeholder={record.originalFolderName}
+            style={{ minWidth: 140 }}
+          />
+        ),
+      },
+      {
+        title: "File ZIP",
+        dataIndex: "fileName",
+        key: "fileName",
+        render: (name: string) => (
+          <Typography.Text
+            type="secondary"
+            ellipsis={{ tooltip: name }}
+            style={{ fontSize: 12, maxWidth: 140 }}
+          >
+            {name}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Bình luận",
+        dataIndex: "commentsPreview",
+        key: "commentsPreview",
+        align: "center" as const,
+        render: (n: number) => (
+          <Tag color={n > 0 ? "blue" : "default"}>{n.toLocaleString("vi-VN")}</Tag>
+        ),
+      },
+      {
+        title: "Cảm xúc",
+        dataIndex: "reactionsPreview",
+        key: "reactionsPreview",
+        align: "center" as const,
+        render: (n: number) => (
+          <Tag color={n > 0 ? "green" : "default"}>{n.toLocaleString("vi-VN")}</Tag>
+        ),
+      },
+      {
+        title: "",
+        key: "remove",
+        width: 40,
+        render: (_: unknown, record: ZipJob) => (
+          <Tooltip title="Bỏ khỏi danh sách">
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => removeJob(record.id)}
+            />
+          </Tooltip>
+        ),
+      },
+    ];
+
+    const totalComments = zipJobs.reduce((s, j) => s + j.commentsPreview, 0);
+    const totalReactions = zipJobs.reduce((s, j) => s + j.reactionsPreview, 0);
+
     return (
       <Modal
         title="Import ZIP dữ liệu Facebook"
         open={open}
         onCancel={handleModalClose}
         onOk={handleConfirm}
-        okText="Import"
+        okText={`Import${zipJobs.length > 1 ? ` (${zipJobs.length} tài khoản)` : ""}`}
         cancelText="Hủy"
-        width={600}
-        okButtonProps={{ disabled: !parsedFiles.length }}
+        width={680}
+        okButtonProps={{ disabled: !zipJobs.length }}
         centered
       >
-        <div style={{ marginBottom: 12 }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: 13,
-              fontWeight: 500,
-              color: "#171717",
-              marginBottom: 6,
-            }}
-          >
-            Tên tài khoản (tùy chọn)
-          </label>
-          <Input
-            placeholder={originalFolderName || "Tên folder (mặc định)"}
-            value={accountNameFolder}
-            onChange={(e) => setAccountNameFolder(e.target.value)}
-          />
-        </div>
-
+        {/* ── Upload area ── */}
         <div className="upload-dragger-ui">
           <div className="ant-upload ant-upload-drag">
             <div className="ant-upload ant-upload-btn">
@@ -402,26 +605,56 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                 accept=".zip"
                 beforeUpload={handleZipUpload}
                 fileList={fileList}
-                maxCount={1}
-                onRemove={() => {
-                  setParsedFiles([]);
-                  setFileList([]);
-                  setProgress(0);
-                  setAccountNameFolder("");
-                  setOriginalFolderName("");
+                multiple
+                showUploadList={false}
+                onRemove={(file) => {
+                  const job = zipJobs.find((j) => j.fileName === file.uid);
+                  if (job) removeJob(job.id);
                 }}
               >
                 <Button icon={<UploadOutlined />}>Chọn file ZIP</Button>
               </Upload>
             </div>
-            <p className="ant-upload-text">Nhấn để chọn file ZIP</p>
+            <p className="ant-upload-text">Nhấn để chọn một hoặc nhiều file ZIP</p>
             <p className="ant-upload-hint">
-              Chỉ hỗ trợ 1 file ZIP chứa dữ liệu Facebook Data Export
+              Hỗ trợ batch import — chọn nhiều file ZIP cùng lúc
             </p>
           </div>
         </div>
 
-        {/* Import progress steps — only visible during active import */}
+        {/* ── Parse progress (chỉ hiện khi đang đọc ZIP) ── */}
+        {progress > 0 && importStep === -1 && (
+          <Progress
+            percent={progress}
+            size="small"
+            style={{ marginTop: 8 }}
+            strokeColor="#3ecf8e"
+          />
+        )}
+
+        {/* ── Preview table — hiện sau khi có ít nhất 1 ZIP ── */}
+        {zipJobs.length > 0 && importStep === -1 && (
+          <div style={{ marginTop: 16 }}>
+            <Typography.Text
+              strong
+              style={{ display: "block", marginBottom: 8, fontSize: 13 }}
+            >
+              Preview import ({zipJobs.length} tài khoản —{" "}
+              {totalComments.toLocaleString("vi-VN")} bình luận,{" "}
+              {totalReactions.toLocaleString("vi-VN")} cảm xúc)
+            </Typography.Text>
+            <Table
+              columns={previewColumns}
+              dataSource={zipJobs}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              scroll={{ y: 200 }}
+            />
+          </div>
+        )}
+
+        {/* ── Import progress steps — only visible during active import ── */}
         {importStep >= 0 && (
           <div style={{ marginTop: 16 }}>
             <Steps
@@ -429,20 +662,12 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
               size="small"
               status={importStep === 3 ? "finish" : "process"}
               items={[
-                { title: "Đọc ZIP" },
+                { title: "Chuẩn bị" },
                 { title: "Phân tích" },
                 { title: "Tải lên" },
                 { title: "Hoàn tất" },
               ]}
             />
-            {importStep < 2 && progress > 0 && (
-              <Progress
-                percent={progress}
-                size="small"
-                style={{ marginTop: 8 }}
-                strokeColor="#3ecf8e"
-              />
-            )}
           </div>
         )}
       </Modal>
