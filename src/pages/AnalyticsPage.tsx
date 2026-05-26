@@ -15,11 +15,12 @@ import { getAccountNames } from "@/service/importService";
 import type { StatsFilter } from "@/types";
 
 // Lazy-load heavy chart components — splits them into separate JS chunks
-const TimelineChart     = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
-const ReactionPieChart  = lazy(() => import("@/components/charts/ReactionPieChart").then(m => ({ default: m.ReactionPieChart })));
-const ActivityHeatmap   = lazy(() => import("@/components/charts/ActivityHeatmap").then(m => ({ default: m.ActivityHeatmap })));
-const TopCommentersChart= lazy(() => import("@/components/charts/TopCommentersChart").then(m => ({ default: m.TopCommentersChart })));
-const SentimentChart    = lazy(() => import("@/components/charts/SentimentChart").then(m => ({ default: m.SentimentChart })));
+const TimelineChart      = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
+const ReactionPieChart   = lazy(() => import("@/components/charts/ReactionPieChart").then(m => ({ default: m.ReactionPieChart })));
+const ActivityHeatmap    = lazy(() => import("@/components/charts/ActivityHeatmap").then(m => ({ default: m.ActivityHeatmap })));
+const TopCommentersChart = lazy(() => import("@/components/charts/TopCommentersChart").then(m => ({ default: m.TopCommentersChart })));
+const SentimentChart     = lazy(() => import("@/components/charts/SentimentChart").then(m => ({ default: m.SentimentChart })));
+const KeywordFreqChart   = lazy(() => import("@/components/charts/KeywordFreqChart").then(m => ({ default: m.KeywordFreqChart })));
 
 function ChartSkeleton({ height = 280 }: { height?: number }) {
   return (
@@ -203,11 +204,22 @@ export default function AnalyticsPage() {
       </Row>
 
       {/* Row 3: Top Commenters */}
-      <Row gutter={[20, 20]}>
+      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24}>
           <ErrorBoundary inline section="Top Commenters">
             <Suspense fallback={<ChartSkeleton height={260} />}>
               <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
+            </Suspense>
+          </ErrorBoundary>
+        </Col>
+      </Row>
+
+      {/* Row 4: Keyword Frequency — top từ khóa trong bình luận */}
+      <Row gutter={[20, 20]}>
+        <Col xs={24}>
+          <ErrorBoundary inline section="Từ khóa bình luận">
+            <Suspense fallback={<ChartSkeleton height={300} />}>
+              <KeywordFreqChart comments={comments} topN={20} />
             </Suspense>
           </ErrorBoundary>
         </Col>

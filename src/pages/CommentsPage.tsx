@@ -14,11 +14,14 @@ import {
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useAllComments, type CommentFilter } from "@/hooks/useAllComments";
-import { KeywordFreqChart } from "@/components/charts/KeywordFreqChart";
 import { getAccountNames } from "@/service/importService";
 import { classifySentiment } from "@/utils/sentiment";
 import type { RichComment } from "@/hooks/useAllComments";
 
+// Lazy-load chart components to keep initial bundle lean
+const KeywordFreqChart = lazy(() =>
+  import("@/components/charts/KeywordFreqChart").then((m) => ({ default: m.KeywordFreqChart }))
+);
 const SentimentChart = lazy(() =>
   import("@/components/charts/SentimentChart").then((m) => ({ default: m.SentimentChart }))
 );
@@ -37,11 +40,14 @@ export default function CommentsPage() {
   const [authorInput, setAuthorInput] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<string | undefined>(undefined);
   const [selectedGroup, setSelectedGroup] = useState<string | undefined>(undefined);
+  const [selectedSentiment, setSelectedSentiment] = useState<"positive" | "neutral" | "negative" | undefined>(undefined);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [page, setPage] = useState(1);
 
   // Committed filter (only applies on button click)
   const [activeFilter, setActiveFilter] = useState<CommentFilter>({});
+  /** Sentiment filter — applied client-side after load (not in Firestore query) */
+  const [activeSentiment, setActiveSentiment] = useState<"positive" | "neutral" | "negative" | undefined>(undefined);
 
   // Account options for dropdown
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
@@ -71,23 +77,38 @@ export default function CommentsPage() {
       from: range?.[0] ? dayjs(range[0]).startOf("day").toDate() : null,
       to: range?.[1] ? dayjs(range[1]).endOf("day").toDate() : null,
     });
-  }, [keyword, authorInput, selectedAccount, selectedGroup, range]);
+    setActiveSentiment(selectedSentiment);
+  }, [keyword, authorInput, selectedAccount, selectedGroup, range, selectedSentiment]);
 
   const handleClear = useCallback(() => {
     setKeyword("");
     setAuthorInput("");
     setSelectedAccount(undefined);
     setSelectedGroup(undefined);
+    setSelectedSentiment(undefined);
+    setActiveSentiment(undefined);
     setRange(null);
     setPage(1);
     setActiveFilter({});
   }, []);
 
-  // Client-side pagination
+  // Client-side sentiment filter (applied after Firestore fetch)
+  const sentimentFiltered = useMemo(() => {
+    if (!activeSentiment) return comments;
+    return comments.filter((c) => {
+      const { sentiment } = classifySentiment(c.content ?? "");
+      return sentiment === activeSentiment;
+    });
+  }, [comments, activeSentiment]);
+
+  // Client-side pagination (on top of sentiment-filtered results)
   const paginatedComments = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return comments.slice(start, start + PAGE_SIZE);
-  }, [comments, page]);
+    return sentimentFiltered.slice(start, start + PAGE_SIZE);
+  }, [sentimentFiltered, page]);
+
+  /** Tổng số rows sau khi áp dụng sentiment filter */
+  const filteredTotal = sentimentFiltered.length;
 
   const columns = [
     {
@@ -218,6 +239,18 @@ export default function CommentsPage() {
           ))}
         </Select>
       )}
+      <Select
+        placeholder="Cảm xúc"
+        size="small"
+        style={{ minWidth: 120 }}
+        value={selectedSentiment}
+        onChange={(v) => setSelectedSentiment(v as typeof selectedSentiment)}
+        allowClear
+      >
+        <Select.Option value="positive">😊 Tích cực</Select.Option>
+        <Select.Option value="neutral">😐 Trung lập</Select.Option>
+        <Select.Option value="negative">😢 Tiêu cực</Select.Option>
+      </Select>
       <DatePicker.RangePicker
         value={range}
         size="small"
@@ -251,9 +284,14 @@ export default function CommentsPage() {
         <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#6b6b6b" }}>
           <CommentOutlined />
           <strong style={{ color: "#171717", fontFamily: "ui-monospace, monospace" }}>
-            {loading ? "..." : total.toLocaleString("vi-VN")}
+            {loading ? "..." : filteredTotal.toLocaleString("vi-VN")}
           </strong>
-          {" "}bình luận{hasActiveFilter ? " (đang lọc)" : " (tất cả)"}
+          {activeSentiment && (
+            <span style={{ marginLeft: 2 }}>
+              {" "}/ {total.toLocaleString("vi-VN")}
+            </span>
+          )}
+          {" "}bình luận{hasActiveFilter || activeSentiment ? " (đang lọc)" : " (tất cả)"}
         </span>
         {hasActiveFilter && (
           <Button
@@ -271,16 +309,24 @@ export default function CommentsPage() {
         {/* Left column: keyword chart + sentiment chart */}
         <Col xs={24} lg={8}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {loading ? (
+            <Suspense fallback={
               <div style={{
                 background: "#fff", border: "1px solid #dfdfdf",
                 borderRadius: 12, padding: "16px 20px",
               }}>
                 <Skeleton active paragraph={{ rows: 8 }} title={false} />
               </div>
-            ) : (
-              <KeywordFreqChart comments={comments} topN={20} />
-            )}
+            }>
+              {!loading && <KeywordFreqChart comments={comments} topN={20} />}
+              {loading && (
+                <div style={{
+                  background: "#fff", border: "1px solid #dfdfdf",
+                  borderRadius: 12, padding: "16px 20px",
+                }}>
+                  <Skeleton active paragraph={{ rows: 8 }} title={false} />
+                </div>
+              )}
+            </Suspense>
             <Suspense fallback={
               <div style={{
                 background: "#fff", border: "1px solid #dfdfdf",
@@ -317,7 +363,7 @@ export default function CommentsPage() {
                 pagination={{
                   current: page,
                   pageSize: PAGE_SIZE,
-                  total,
+                  total: filteredTotal,
                   onChange: setPage,
                   showSizeChanger: false,
                   showTotal: (t) => `${t.toLocaleString("vi-VN")} bình luận`,

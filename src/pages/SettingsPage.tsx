@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useNavigate } from "react-router-dom";
 
 const { Text, Title } = Typography;
@@ -72,6 +73,7 @@ function RowSetting({
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { theme: appTheme, setTheme: setAppTheme } = useTheme();
 
   // Preference state — persisted to localStorage
   const [dateFormat, setDateFormat]   = useState<DateFormatOption>(
@@ -225,6 +227,18 @@ export default function SettingsPage() {
             />
           </RowSetting>
 
+          <RowSetting
+            label="Giao diện tối"
+            description="Chuyển toàn bộ ứng dụng sang màu nền tối"
+          >
+            <Switch
+              checked={appTheme === "dark"}
+              onChange={(checked) => setAppTheme(checked ? "dark" : "light")}
+              size="small"
+              style={{ background: appTheme === "dark" ? "#3ecf8e" : undefined }}
+            />
+          </RowSetting>
+
           <div style={{ marginTop: 16, textAlign: "right" }}>
             <Button
               type="primary"
@@ -243,9 +257,9 @@ export default function SettingsPage() {
           <Space direction="vertical" size={6} style={{ width: "100%" }}>
             {[
               { label: "Ứng dụng", value: "FB Pulse Tracker" },
-              { label: "Phiên bản", value: "0.3.0 (Day 3)" },
+              { label: "Phiên bản", value: "0.6.0 (Day 6)" },
               { label: "Stack", value: "React 19 · TypeScript 5.9 · Vite 7 · Firebase 12" },
-              { label: "UI", value: "Ant Design 6 · ECharts 6" },
+              { label: "UI", value: "Ant Design 6 · ECharts 6 · Dark/Light mode" },
               { label: "Kiến trúc", value: "Service Layer · Cursor Pagination · Rule-based NLP" },
             ].map(({ label, value }) => (
               <div key={label} style={{
