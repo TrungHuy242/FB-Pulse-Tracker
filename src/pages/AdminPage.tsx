@@ -4,23 +4,14 @@ import "@/styles/admin.scss";
 import { Button, Table, Modal, Input, Space, message, Select } from "antd";
 import { useLoading } from "@/contexts/LoadingContext";
 import { PlusOutlined, EditOutlined, DeleteOutlined, BarChartOutlined } from "@ant-design/icons";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
-import { db } from "@/service/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface AllowedAccount {
-  id: string;
-  email: string;
-  displayName?: string;
-  role?: number;
-}
+import {
+  getAllowedAccounts,
+  createAllowedAccount,
+  updateAllowedAccount,
+  deleteAllowedAccount,
+} from "@/service/accountService";
+import type { AllowedAccount } from "@/types";
 
 const AdminPage: React.FC = () => {
   const [items, setItems] = useState<AllowedAccount[]>([]);
@@ -29,25 +20,22 @@ const AdminPage: React.FC = () => {
   const [editing, setEditing] = useState<AllowedAccount | null>(null);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState<number>(0);
+  const [role, setRole] = useState<0 | 1>(0);
   const navigate = useNavigate();
 
   const { user } = useAuth();
 
   const { showLoading, closeLoading } = useLoading();
-  
+
   const isEditingSelf = !!(
     editing && user?.allowedAccountId && editing.id === user.allowedAccountId
   );
+
   const load = async () => {
     showLoading("admin-load");
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "allowedAccounts"));
-      const arr: AllowedAccount[] = snap.docs.map((d) => {
-        const data = d.data() as Omit<AllowedAccount, "id">;
-        return { id: d.id, ...data };
-      });
+      const arr = await getAllowedAccounts();
       setItems(arr);
     } catch (err) {
       console.error("Load allowed accounts failed", err);
@@ -102,23 +90,20 @@ const AdminPage: React.FC = () => {
     setLoading(true);
     try {
       if (editing) {
-        const roleToSave =
+        // Không cho phép tự đổi role của chính mình
+        const roleToSave: 0 | 1 =
           user?.allowedAccountId && editing.id === user.allowedAccountId
-            ? (editing.role ?? 0)
+            ? ((editing.role ?? 0) as 0 | 1)
             : role;
 
-        await updateDoc(doc(db, "allowedAccounts", editing.id), {
+        await updateAllowedAccount(editing.id, {
           email,
           displayName,
           role: roleToSave,
         });
         message.success("Cập nhật thành công");
       } else {
-        await addDoc(collection(db, "allowedAccounts"), {
-          email,
-          displayName,
-          role,
-        });
+        await createAllowedAccount({ email, displayName, role });
         message.success("Thêm thành công");
       }
       setIsModalOpen(false);
@@ -148,7 +133,7 @@ const AdminPage: React.FC = () => {
         showLoading("admin-delete");
         setLoading(true);
         try {
-          await deleteDoc(doc(db, "allowedAccounts", id));
+          await deleteAllowedAccount(id);
           message.success("Đã xóa");
           await load();
         } catch (err) {
@@ -257,7 +242,7 @@ const AdminPage: React.FC = () => {
             <Select
               id="admin-role-select"
               value={role}
-              onChange={(val) => setRole(Number(val))}
+              onChange={(val) => setRole(Number(val) as 0 | 1)}
               style={{ width: "100%" }}
               disabled={isEditingSelf}
             >

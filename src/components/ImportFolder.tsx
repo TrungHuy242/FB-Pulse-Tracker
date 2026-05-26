@@ -2,16 +2,17 @@ import { Button, Modal, Upload, message, Progress, Input } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
 import JSZip from "jszip";
-import {
-  addDoc,
-  collection,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "@/service/firebase";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import "../styles/header.scss";
 import { useLoading } from "@/contexts/LoadingContext";
+import { decodeFacebookObject } from "@/utils/encoding";
+import { chunkArray } from "@/utils/array";
+import {
+  createImport,
+  addCommentChunk,
+  addReactionChunk,
+  finalizeImport,
+} from "@/service/importService";
 
 const COMMENT_CHUNK_SIZE = 700;
 const REACTION_CHUNK_SIZE = 2000;
@@ -73,30 +74,6 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
     const [originalFolderName, setOriginalFolderName] = useState("");
 
     const { showLoading, closeLoading } = useLoading();
-
-    /* ========================= DECODE FACEBOOK UTF-8 ========================= */
-    const decodeFacebookText = (text: string): string => {
-      try {
-        const bytes = Uint8Array.from([...text].map((c) => c.charCodeAt(0)));
-        return new TextDecoder("utf-8").decode(bytes);
-      } catch {
-        return text;
-      }
-    };
-
-    const decodeFacebookObject = (obj: unknown): unknown => {
-      if (typeof obj === "string") return decodeFacebookText(obj);
-      if (Array.isArray(obj)) return obj.map(decodeFacebookObject);
-      if (obj && typeof obj === "object") {
-        return Object.fromEntries(
-          Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
-            k,
-            decodeFacebookObject(v),
-          ])
-        );
-      }
-      return obj;
-    };
 
     /* ========================= ZIP UPLOAD HANDLER ========================= */
     const handleZipUpload = async (file: File) => {
@@ -242,14 +219,6 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       };
     };
 
-    const chunkArray = <T,>(arr: T[], size: number): T[][] => {
-      const res: T[][] = [];
-      for (let i = 0; i < arr.length; i += size) {
-        res.push(arr.slice(i, i + size));
-      }
-      return res;
-    };
-
     /* ========================= CONFIRM IMPORT ========================= */
     const handleConfirm = async () => {
       if (!parsedFiles.length) return;
@@ -275,8 +244,8 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         showLoading("import-data");
 
         for (const [groupName, files] of Object.entries(groupMap)) {
-          const importRef = await addDoc(collection(db, "imports"), {
-            importedAt: serverTimestamp(),
+          // Tạo import document qua service layer
+          const importRef = await createImport({
             totalFiles: files.length,
             status: "processing",
           });
@@ -314,37 +283,36 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
             }
           }
 
+          // Lưu comment chunks qua service layer
           const commentChunks = chunkArray(allComments, COMMENT_CHUNK_SIZE);
           if (commentChunks.length === 0) {
-            await addDoc(
-              collection(db, "imports", importRef.id, "commentChunks"),
-              { index: 0, items: [], count: 0 }
-            );
+            await addCommentChunk(importRef.id, { index: 0, items: [], count: 0 });
           } else {
             for (let i = 0; i < commentChunks.length; i++) {
-              await addDoc(
-                collection(db, "imports", importRef.id, "commentChunks"),
-                { index: i, items: commentChunks[i], count: commentChunks[i].length }
-              );
+              await addCommentChunk(importRef.id, {
+                index: i,
+                items: commentChunks[i],
+                count: commentChunks[i].length,
+              });
             }
           }
 
+          // Lưu reaction chunks qua service layer
           const reactionChunks = chunkArray(allReactions, REACTION_CHUNK_SIZE);
           if (reactionChunks.length === 0) {
-            await addDoc(
-              collection(db, "imports", importRef.id, "reactionChunks"),
-              { index: 0, items: [], count: 0 }
-            );
+            await addReactionChunk(importRef.id, { index: 0, items: [], count: 0 });
           } else {
             for (let i = 0; i < reactionChunks.length; i++) {
-              await addDoc(
-                collection(db, "imports", importRef.id, "reactionChunks"),
-                { index: i, items: reactionChunks[i], count: reactionChunks[i].length }
-              );
+              await addReactionChunk(importRef.id, {
+                index: i,
+                items: reactionChunks[i],
+                count: reactionChunks[i].length,
+              });
             }
           }
 
-          await updateDoc(importRef, {
+          // Hoàn tất import qua service layer
+          await finalizeImport(importRef.id, {
             accountName: groupName,
             commentsCount,
             reactionsCount,

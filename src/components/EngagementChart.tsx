@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { Card, Empty } from "antd";
+import { Card, Empty, Skeleton } from "antd";
 import { useAccountsTable } from "./AccountsTable/hooks/useAccountsTable";
 import type { AccountsTableFilter } from "./AccountsTable/hooks/useAccountsTable";
 import type { ImportRecord } from "@/types";
@@ -15,7 +15,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
   filter,
   refreshSignal,
 }) => {
-  const { tableData } = useAccountsTable(
+  const { tableData, load: isLoading } = useAccountsTable(
     filter as AccountsTableFilter,
     refreshSignal,
     "filter-chart"
@@ -177,7 +177,32 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
       >
         Engagement
       </div>
-      {option ? (
+      {isLoading ? (
+        /* Skeleton loading — hiển thị khi đang tải dữ liệu biểu đồ */
+        <div style={{ height: 320, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8, padding: "16px 0" }}>
+          {/* Skeleton bars giả lập biểu đồ bar chart */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 260 }}>
+            {[65, 40, 80, 55, 90, 35, 70, 50, 85, 45].map((h, i) => (
+              <Skeleton.Button
+                key={i}
+                active
+                style={{
+                  width: "8%",
+                  height: `${h}%`,
+                  borderRadius: "3px 3px 0 0",
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              />
+            ))}
+          </div>
+          {/* Skeleton legend */}
+          <div style={{ display: "flex", gap: 16, justifyContent: "flex-end" }}>
+            <Skeleton.Button active style={{ width: 80, height: 16, borderRadius: 8 }} />
+            <Skeleton.Button active style={{ width: 80, height: 16, borderRadius: 8 }} />
+          </div>
+        </div>
+      ) : option ? (
         <ReactECharts option={option} style={{ height: 320 }} />
       ) : (
         <Empty

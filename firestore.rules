@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Người dùng đã đăng nhập Firebase Auth */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /**
+     * Kiểm tra email có trong allowedAccounts không.
+     * Dùng get() để cross-document check trong security rules.
+     */
+    function isAllowedUser() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/allowedAccounts/$(request.auth.uid));
+    }
+
+    /**
+     * Kiểm tra user có role admin (role == 1) không.
+     * Đọc document allowedAccounts theo UID để lấy role.
+     */
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/allowedAccounts/$(request.auth.uid)).data.role == 1;
+    }
+
+    // ── allowedAccounts ───────────────────────────────────────────────────────
+    // Chỉ admin mới được tạo/sửa/xóa tài khoản được phép
+    // User đã đăng nhập được đọc để kiểm tra quyền truy cập
+    match /allowedAccounts/{accountId} {
+      // Đọc: bất kỳ user đã auth (cần để login flow query email)
+      allow read: if isAuthenticated();
+      // Tạo mới: chỉ admin
+      allow create: if isAdmin();
+      // Cập nhật: chỉ admin, không được tự thay đổi role của chính mình
+      allow update: if isAdmin() && accountId != request.auth.uid;
+      // Xóa: chỉ admin, không được tự xóa chính mình
+      allow delete: if isAdmin() && accountId != request.auth.uid;
+    }
+
+    // ── imports ───────────────────────────────────────────────────────────────
+    // Chỉ user trong whitelist mới được đọc/ghi imports
+    match /imports/{importId} {
+      // Đọc: user đã auth (read-only cũng xem được)
+      allow read: if isAuthenticated();
+      // Tạo mới import: user đã auth
+      allow create: if isAuthenticated();
+      // Cập nhật: user đã auth (để update status, counts)
+      allow update: if isAuthenticated();
+      // Xóa: chỉ admin
+      allow delete: if isAdmin();
+
+      // ── imports/{importId}/commentChunks ─────────────────────────────────
+      match /commentChunks/{chunkId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAdmin();
+      }
+
+      // ── imports/{importId}/reactionChunks ────────────────────────────────
+      match /reactionChunks/{chunkId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ── Mặc định: từ chối tất cả ─────────────────────────────────────────────
+    // Bất kỳ collection nào chưa được khai báo sẽ bị từ chối
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
