@@ -9,6 +9,7 @@ import { ConfigProvider, theme as antdThemeApi } from "antd";
 import viVN from "antd/locale/vi_VN";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
 import AdminPage from "./pages/AdminPage";
 import ImportsPage from "./pages/ImportsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
@@ -101,6 +102,18 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
   return children;
 }
 
+/**
+ * RootRoute — "/" route:
+ *  - Unauthenticated: LandingPage (giới thiệu sản phẩm + login CTA)
+ *  - Authenticated:   HomePage (dashboard)
+ */
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <LandingPage />;
+  return <HomePage />;
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -109,10 +122,8 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/"
-                element={<RequireAuth><HomePage /></RequireAuth>}
-              />
+              {/* "/" → LandingPage (unauthenticated) hoặc HomePage (authenticated) */}
+              <Route path="/" element={<RootRoute />} />
               <Route
                 path="/imports"
                 element={<RequireAuth><ImportsPage /></RequireAuth>}

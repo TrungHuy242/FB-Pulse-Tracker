@@ -20,33 +20,42 @@ test.describe("Login page", () => {
   });
 
   test("renders brand name", async ({ page }) => {
-    // App title should appear on the login page
     await expect(page.getByText(/fb pulse tracker/i)).toBeVisible();
   });
 
   test("renders Google sign-in button", async ({ page }) => {
-    // The Google login button should be present and visible
     const loginBtn = page.getByRole("button", { name: /đăng nhập.*google|google/i });
     await expect(loginBtn).toBeVisible();
   });
 
   test("page has correct title", async ({ page }) => {
-    // Document title should include app name
     await expect(page).toHaveTitle(/fb pulse|pulse tracker/i);
   });
 });
 
-// ── Root redirect ──────────────────────────────────────────────────────────────
+// ── Root / Landing page ────────────────────────────────────────────────────────
 
-test.describe("Root URL", () => {
-  test("redirects unauthenticated user to login", async ({ page }) => {
+test.describe("Root URL (Landing page)", () => {
+  test("unauthenticated user sees landing page at /", async ({ page }) => {
     await page.goto("/");
-    // Unauthenticated user should end up on /login
-    await expect(page).toHaveURL(/\/login/);
+    // Should show landing page content (not redirect to /login)
+    await expect(page.getByText(/fb pulse tracker/i)).toBeVisible();
   });
 
-  test("dashboard route redirects unauthenticated user", async ({ page }) => {
-    await page.goto("/dashboard");
+  test("landing page shows main headline", async ({ page }) => {
+    await page.goto("/");
+    // Hero headline should be visible
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
+  test("landing page has login CTA button", async ({ page }) => {
+    await page.goto("/");
+    const ctaBtn = page.getByRole("button", { name: /đăng nhập/i }).first();
+    await expect(ctaBtn).toBeVisible();
+  });
+
+  test("unknown protected route redirects to login", async ({ page }) => {
+    await page.goto("/imports");
     await expect(page).toHaveURL(/\/login/);
   });
 });

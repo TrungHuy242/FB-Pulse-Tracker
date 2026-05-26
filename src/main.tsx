@@ -5,6 +5,7 @@ import { LoadingProvider } from "@/contexts/LoadingContext";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { initSentry } from "@/service/sentry";
+import { ImportDataProvider } from "@/contexts/ImportDataContext";
 import "./styles/responsive.scss";
 import "./styles/layout.scss";
 import "./styles/print.scss";
@@ -16,8 +17,10 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <LoadingProvider>
       <AuthProvider>
-        <App />
-        <LoadingOverlay />
+        <ImportDataProvider>
+          <App />
+          <LoadingOverlay />
+        </ImportDataProvider>
       </AuthProvider>
     </LoadingProvider>
   </StrictMode>
