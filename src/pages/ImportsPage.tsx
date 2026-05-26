@@ -9,6 +9,7 @@ import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { AccountsTable } from "@/components/AccountsTable";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
+import { PrintReportButton } from "@/components/PrintReportButton";
 import { getAccountNames } from "@/service/importService";
 import type { StatsFilter } from "@/types";
 
@@ -147,6 +148,7 @@ export default function ImportsPage() {
 
       <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
+      <PrintReportButton title="Báo cáo Imports" size="small" />
     </Space>
   );
 

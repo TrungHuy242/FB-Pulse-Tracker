@@ -22,6 +22,7 @@ import { useImportReactions } from "./AccountsTable/hooks/useImportReactions";
 import { exportAllImportsToExcel } from "./exportAllImportsToExcel";
 import { exportAllImportsToCSV } from "./exportAllImportsToCSV";
 import { exportAllImportsToJSON } from "./exportAllImportsToJSON";
+import { clearCacheByPrefix } from "@/service/queryCache";
 import { useLoading } from "@/contexts/LoadingContext";
 import { deleteImport } from "@/service/importService";
 import type { Timestamp } from "firebase/firestore";
@@ -112,6 +113,8 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           try {
             // Cascade delete qua service layer
             await deleteImport(importId);
+            // Xóa cache liên quan để tránh hiển thị dữ liệu cũ
+            clearCacheByPrefix("imports:");
             message.success("Xóa import thành công");
             reloadTable();
             reloadStats?.();

@@ -16,6 +16,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/service/firebase";
+import { withCache, clearCacheByPrefix } from "@/service/queryCache";
 import type { ImportRecord } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -62,13 +63,16 @@ export const getAllImports = async (): Promise<ImportRecord[]> => {
 /**
  * Lấy danh sách tên tài khoản (distinct) từ imports.
  * Dùng cho dropdown filter trong Header.
+ * Cached 30s — tránh re-fetch khi nhiều component mount cùng lúc.
  */
 export const getAccountNames = async (): Promise<string[]> => {
-  const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => (d.data().accountName ?? "Unknown").toString())
-    .filter(Boolean);
+  return withCache("imports:accountNames", async () => {
+    const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => (d.data().accountName ?? "Unknown").toString())
+      .filter(Boolean);
+  }, 30_000);
 };
 
 // ── Write operations ─────────────────────────────────────────────────────────
@@ -86,12 +90,15 @@ export const createImport = async (payload: CreateImportPayload) => {
 
 /**
  * Cập nhật import sau khi đã xử lý xong (set accountName, counts, status).
+ * Invalidate cache accountNames để dropdown cập nhật tên mới.
  */
 export const finalizeImport = async (
   importId: string,
   payload: FinalizeImportPayload
 ): Promise<void> => {
   await updateDoc(doc(db, "imports", importId), payload as unknown as Record<string, unknown>);
+  // Xóa cache để dropdown filter cập nhật tên tài khoản mới
+  clearCacheByPrefix("imports:");
 };
 
 /**
@@ -125,6 +132,7 @@ export const addReactionChunk = async (
 /**
  * Xóa một import và toàn bộ sub-collections (cascade delete).
  * Thứ tự: commentChunks → reactionChunks → parent document.
+ * Invalidate toàn bộ cache imports sau khi xóa.
  */
 export const deleteImport = async (importId: string): Promise<void> => {
   // Xóa comment chunks trước
@@ -153,6 +161,8 @@ export const deleteImport = async (importId: string): Promise<void> => {
 
   // Xóa parent document
   await deleteDoc(doc(db, "imports", importId));
+  // Invalidate cache
+  clearCacheByPrefix("imports:");
 };
 
 /**

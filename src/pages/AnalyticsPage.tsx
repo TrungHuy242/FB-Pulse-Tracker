@@ -8,6 +8,8 @@ import { Row, Col, Button, DatePicker, Select, Space, Tooltip, Skeleton } from "
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { PrintReportButton } from "@/components/PrintReportButton";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAllEngagement } from "@/hooks/useAllEngagement";
 import { getAccountNames } from "@/service/importService";
 import type { StatsFilter } from "@/types";
@@ -137,6 +139,15 @@ export default function AnalyticsPage() {
       </div>
       <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
+      <PrintReportButton
+        title="Báo cáo Analytics"
+        dateLabel={
+          effectiveFilter?.from && effectiveFilter?.to
+            ? `${dayjs(effectiveFilter.from).format("D/M/YYYY")} – ${dayjs(effectiveFilter.to).format("D/M/YYYY")}`
+            : "Tất cả"
+        }
+        size="small"
+      />
     </Space>
   );
 
@@ -145,48 +156,60 @@ export default function AnalyticsPage() {
       {/* Row 0: Insights + Sentiment (data from shared hook) */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={14}>
-          <InsightsPanel
-            comments={comments}
-            reactions={reactions}
-            loading={engLoading}
-          />
+          <ErrorBoundary inline section="Auto Insights">
+            <InsightsPanel
+              comments={comments}
+              reactions={reactions}
+              loading={engLoading}
+            />
+          </ErrorBoundary>
         </Col>
         <Col xs={24} md={10}>
-          <Suspense fallback={<ChartSkeleton height={260} />}>
-            <SentimentChart comments={comments} loading={engLoading} />
-          </Suspense>
+          <ErrorBoundary inline section="Phân tích cảm xúc">
+            <Suspense fallback={<ChartSkeleton height={260} />}>
+              <SentimentChart comments={comments} loading={engLoading} />
+            </Suspense>
+          </ErrorBoundary>
         </Col>
       </Row>
 
       {/* Row 1: Timeline (full width) */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24}>
-          <Suspense fallback={<ChartSkeleton height={300} />}>
-            <TimelineChart filter={effectiveFilter} refreshSignal={refreshSignal} />
-          </Suspense>
+          <ErrorBoundary inline section="Xu hướng tương tác">
+            <Suspense fallback={<ChartSkeleton height={300} />}>
+              <TimelineChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+            </Suspense>
+          </ErrorBoundary>
         </Col>
       </Row>
 
       {/* Row 2: Pie chart + Heatmap */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={10}>
-          <Suspense fallback={<ChartSkeleton height={260} />}>
-            <ReactionPieChart filter={effectiveFilter} refreshSignal={refreshSignal} />
-          </Suspense>
+          <ErrorBoundary inline section="Phân bổ Reaction">
+            <Suspense fallback={<ChartSkeleton height={260} />}>
+              <ReactionPieChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+            </Suspense>
+          </ErrorBoundary>
         </Col>
         <Col xs={24} md={14}>
-          <Suspense fallback={<ChartSkeleton height={260} />}>
-            <ActivityHeatmap filter={effectiveFilter} refreshSignal={refreshSignal} />
-          </Suspense>
+          <ErrorBoundary inline section="Heatmap hoạt động">
+            <Suspense fallback={<ChartSkeleton height={260} />}>
+              <ActivityHeatmap filter={effectiveFilter} refreshSignal={refreshSignal} />
+            </Suspense>
+          </ErrorBoundary>
         </Col>
       </Row>
 
       {/* Row 3: Top Commenters */}
       <Row gutter={[20, 20]}>
         <Col xs={24}>
-          <Suspense fallback={<ChartSkeleton height={260} />}>
-            <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
-          </Suspense>
+          <ErrorBoundary inline section="Top Commenters">
+            <Suspense fallback={<ChartSkeleton height={260} />}>
+              <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
+            </Suspense>
+          </ErrorBoundary>
         </Col>
       </Row>
     </AppLayout>

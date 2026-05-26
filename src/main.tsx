@@ -6,6 +6,7 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { AuthProvider } from "@/contexts/AuthContext";
 import "./styles/responsive.scss";
 import "./styles/layout.scss";
+import "./styles/print.scss";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
