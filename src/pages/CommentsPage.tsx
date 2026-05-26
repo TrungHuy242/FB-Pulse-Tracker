@@ -1,21 +1,27 @@
 /**
  * CommentsPage — Trang phân tích bình luận sâu.
  * Tính năng: tìm kiếm toàn văn, lọc theo tác giả/nhóm/tài khoản/ngày,
- * danh sách phân trang, biểu đồ tần suất từ khóa.
+ * danh sách phân trang, biểu đồ tần suất từ khóa, xuất CSV/JSON, phân tích AI.
  */
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import {
   Input, Button, Select, DatePicker, Table, Tag, Space,
-  Row, Col, Skeleton, Empty, Typography,
+  Row, Col, Skeleton, Empty, Typography, Dropdown,
 } from "antd";
 import {
   SearchOutlined, ClearOutlined, CommentOutlined, DownloadOutlined,
+  RobotOutlined, CloseOutlined, DownOutlined, CheckCircleOutlined,
+  ExclamationCircleOutlined, MinusCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useAllComments, type CommentFilter } from "@/hooks/useAllComments";
 import { getAccountNames } from "@/service/importService";
 import { classifySentiment } from "@/utils/sentiment";
+import {
+  analyzeCommentsWithAI,
+  type AiSentimentResponse,
+} from "@/service/aiSentimentService";
 import type { RichComment } from "@/hooks/useAllComments";
 
 // Lazy-load chart components to keep initial bundle lean
@@ -28,16 +34,22 @@ const SentimentChart = lazy(() =>
 
 const { Text } = Typography;
 const PAGE_SIZE = 25;
+/** Max comments sent to AI per analysis request */
+const AI_BATCH_LIMIT = 200;
+
+// ── Format helpers ────────────────────────────────────────────────────────────
 
 function formatDateTime(ts: number): string {
   if (!ts) return "—";
   return new Date(ts * 1000).toLocaleString("vi-VN");
 }
 
+// ── Export functions ──────────────────────────────────────────────────────────
+
 /**
  * Export danh sách bình luận ra file CSV (UTF-8 BOM để Excel đọc được).
  */
-function exportCommentsToCSV(data: RichComment[]): void {
+export function exportCommentsToCSV(data: RichComment[]): void {
   const BOM = "﻿";
   const header = ["Tác giả", "Nội dung", "Cảm xúc", "Nhóm", "Tài khoản", "Thời gian"];
   const rows = data.map((c) => {
@@ -62,6 +74,141 @@ function exportCommentsToCSV(data: RichComment[]): void {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Export danh sách bình luận ra file JSON với sentiment rule-based.
+ */
+export function exportCommentsToJSON(data: RichComment[]): void {
+  const rows = data.map((c) => {
+    const { sentiment, score } = classifySentiment(c.content ?? "");
+    return {
+      authorName: c.authorName ?? "",
+      content: c.content ?? "",
+      sentiment,
+      sentimentScore: score,
+      group: c.group ?? "",
+      accountName: c.accountName ?? "",
+      commentTime: c.commentTime
+        ? new Date(c.commentTime * 1000).toISOString()
+        : null,
+    };
+  });
+  const json = JSON.stringify(rows, null, 2);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `comments_export_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── AI Results Panel ──────────────────────────────────────────────────────────
+
+interface AiResultsPanelProps {
+  results: AiSentimentResponse;
+  onClose: () => void;
+}
+
+function AiResultsPanel({ results, onClose }: AiResultsPanelProps) {
+  const { results: items, usedAi, totalProcessed } = results;
+
+  const counts = useMemo(() => {
+    const c = { positive: 0, neutral: 0, negative: 0 };
+    for (const r of items) {
+      c[r.sentiment] = (c[r.sentiment] ?? 0) + 1;
+    }
+    return c;
+  }, [items]);
+
+  const pct = (n: number) =>
+    totalProcessed > 0 ? Math.round((n / totalProcessed) * 100) : 0;
+
+  const bars: Array<{
+    key: "positive" | "neutral" | "negative";
+    label: string;
+    icon: React.ReactNode;
+    color: string;
+    bg: string;
+  }> = [
+    { key: "positive", label: "Tích cực", icon: <CheckCircleOutlined />, color: "#1a7f5e", bg: "rgba(62,207,142,0.12)" },
+    { key: "neutral",  label: "Trung lập", icon: <MinusCircleOutlined />, color: "#707070", bg: "#f4f4f4" },
+    { key: "negative", label: "Tiêu cực", icon: <ExclamationCircleOutlined />, color: "#dc2626", bg: "rgba(220,38,38,0.08)" },
+  ];
+
+  return (
+    <div style={{
+      marginBottom: 16, padding: "14px 18px",
+      background: "#fafafa", border: "1px solid #dfdfdf",
+      borderLeft: `3px solid ${usedAi ? "#3ecf8e" : "#f59e0b"}`,
+      borderRadius: 8,
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <RobotOutlined style={{ color: usedAi ? "#1a7f5e" : "#b45309", fontSize: 14 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#171717" }}>
+            AI Sentiment — {totalProcessed.toLocaleString("vi-VN")} bình luận
+          </span>
+          <Tag
+            style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+              textTransform: "uppercase", border: "none", borderRadius: 4,
+              background: usedAi ? "rgba(62,207,142,0.12)" : "rgba(245,158,11,0.12)",
+              color: usedAi ? "#1a7f5e" : "#b45309",
+            }}
+          >
+            {usedAi ? "Cloud Function AI" : "Rule-based fallback"}
+          </Tag>
+        </div>
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={onClose}
+          style={{ color: "#9a9a9a" }}
+        />
+      </div>
+
+      {/* Sentiment bars */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {bars.map(({ key, label, icon, color, bg }) => (
+          <div key={key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ color, fontSize: 12, width: 16, flexShrink: 0 }}>{icon}</span>
+            <span style={{ fontSize: 12, color: "#6b6b6b", width: 62, flexShrink: 0 }}>{label}</span>
+            <div style={{
+              flex: 1, height: 8, background: "#ebebeb", borderRadius: 4, overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${pct(counts[key])}%`,
+                height: "100%", background: color === "#1a7f5e" ? "#3ecf8e" : color,
+                borderRadius: 4, transition: "width 0.4s ease",
+              }} />
+            </div>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: "#171717",
+              width: 38, textAlign: "right", flexShrink: 0,
+            }}>
+              {pct(counts[key])}%
+            </span>
+            <span style={{ fontSize: 11, color: "#9a9a9a", width: 32, flexShrink: 0 }}>
+              ({counts[key].toLocaleString("vi-VN")})
+            </span>
+            <Tag style={{
+              fontSize: 10, border: "none", borderRadius: 4,
+              background: bg, color, fontWeight: 600,
+              margin: 0, padding: "0 6px",
+            }}>
+              {key}
+            </Tag>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function CommentsPage() {
   // Filter state
   const [keyword, setKeyword] = useState("");
@@ -80,6 +227,10 @@ export default function CommentsPage() {
   // Account options for dropdown
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
 
+  // AI analysis state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResults, setAiResults] = useState<AiSentimentResponse | null>(null);
+
   useEffect(() => {
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
@@ -97,6 +248,7 @@ export default function CommentsPage() {
 
   const handleSearch = useCallback(() => {
     setPage(1);
+    setAiResults(null); // reset AI panel when filter changes
     setActiveFilter({
       keyword: keyword.trim() || undefined,
       author: authorInput.trim() || undefined,
@@ -118,6 +270,7 @@ export default function CommentsPage() {
     setRange(null);
     setPage(1);
     setActiveFilter({});
+    setAiResults(null);
   }, []);
 
   // Client-side sentiment filter (applied after Firestore fetch)
@@ -137,6 +290,40 @@ export default function CommentsPage() {
 
   /** Tổng số rows sau khi áp dụng sentiment filter */
   const filteredTotal = sentimentFiltered.length;
+
+  // ── AI Analysis ────────────────────────────────────────────────────────────
+
+  const handleAiAnalyze = useCallback(async () => {
+    if (sentimentFiltered.length === 0) return;
+    setAiLoading(true);
+    setAiResults(null);
+    try {
+      const batch = sentimentFiltered.slice(0, AI_BATCH_LIMIT).map((c, i) => ({
+        id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+        content: c.content ?? "",
+      }));
+      const result = await analyzeCommentsWithAI(batch);
+      setAiResults(result);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [sentimentFiltered]);
+
+  // ── Export menu ────────────────────────────────────────────────────────────
+
+  const exportDisabled = loading || sentimentFiltered.length === 0;
+
+  const exportMenuItems = [
+    { key: "csv",  label: "Xuất CSV (.csv)" },
+    { key: "json", label: "Xuất JSON (.json)" },
+  ];
+
+  const handleExportMenu = useCallback(({ key }: { key: string }) => {
+    if (key === "csv")  exportCommentsToCSV(sentimentFiltered);
+    if (key === "json") exportCommentsToJSON(sentimentFiltered);
+  }, [sentimentFiltered]);
+
+  // ── Table columns ──────────────────────────────────────────────────────────
 
   const columns = [
     {
@@ -220,6 +407,8 @@ export default function CommentsPage() {
     },
   ];
 
+  // ── Top bar ────────────────────────────────────────────────────────────────
+
   const topBar = (
     <Space size={6} wrap>
       <Input
@@ -295,15 +484,34 @@ export default function CommentsPage() {
       <Button size="small" icon={<ClearOutlined />} onClick={handleClear}>
         Xóa
       </Button>
+
+      {/* AI Analysis button */}
       <Button
         size="small"
-        icon={<DownloadOutlined />}
+        icon={<RobotOutlined />}
+        loading={aiLoading}
         disabled={loading || sentimentFiltered.length === 0}
-        onClick={() => exportCommentsToCSV(sentimentFiltered)}
-        title="Xuất danh sách bình luận hiện tại ra CSV"
+        onClick={handleAiAnalyze}
+        title={`Phân tích cảm xúc AI (tối đa ${AI_BATCH_LIMIT} bình luận)`}
       >
-        Xuất CSV
+        Phân tích AI
       </Button>
+
+      {/* Export dropdown: CSV + JSON */}
+      <Dropdown
+        menu={{ items: exportMenuItems, onClick: handleExportMenu }}
+        disabled={exportDisabled}
+        trigger={["click"]}
+      >
+        <Button
+          size="small"
+          icon={<DownloadOutlined />}
+          disabled={exportDisabled}
+          title="Xuất danh sách bình luận hiện tại"
+        >
+          Xuất <DownOutlined style={{ fontSize: 10 }} />
+        </Button>
+      </Dropdown>
     </Space>
   );
 
@@ -314,7 +522,7 @@ export default function CommentsPage() {
       {/* Stats summary bar */}
       <div style={{
         display: "flex", alignItems: "center", gap: 16,
-        marginBottom: 16, padding: "10px 16px",
+        marginBottom: 12, padding: "10px 16px",
         background: "#fafafa", border: "1px solid #dfdfdf",
         borderRadius: 8, fontSize: 13,
       }}>
@@ -340,7 +548,18 @@ export default function CommentsPage() {
             Xóa bộ lọc
           </Button>
         )}
+        {aiLoading && (
+          <span style={{ fontSize: 12, color: "#b45309", marginLeft: "auto" }}>
+            <RobotOutlined style={{ marginRight: 4 }} />
+            Đang phân tích AI...
+          </span>
+        )}
       </div>
+
+      {/* AI results panel — visible after analysis */}
+      {aiResults && (
+        <AiResultsPanel results={aiResults} onClose={() => setAiResults(null)} />
+      )}
 
       <Row gutter={[16, 16]}>
         {/* Left column: keyword chart + sentiment chart */}
