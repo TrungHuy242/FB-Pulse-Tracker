@@ -21,6 +21,7 @@ import { useImportComments } from "./AccountsTable/hooks/useImportComments";
 import { useImportReactions } from "./AccountsTable/hooks/useImportReactions";
 import { exportAllImportsToExcel } from "./exportAllImportsToExcel";
 import { exportAllImportsToCSV } from "./exportAllImportsToCSV";
+import { exportAllImportsToJSON } from "./exportAllImportsToJSON";
 import { useLoading } from "@/contexts/LoadingContext";
 import { deleteImport } from "@/service/importService";
 import type { Timestamp } from "firebase/firestore";
@@ -265,6 +266,19 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
               title="Xuất CSV (UTF-8, mở được trong Excel)"
             >
               CSV
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  showLoading("export-json");
+                  await exportAllImportsToJSON(undefined, memoFilter);
+                } finally {
+                  closeLoading("export-json");
+                }
+              }}
+              title="Xuất JSON (dữ liệu thô)"
+            >
+              JSON
             </Button>
           </Space>
         }

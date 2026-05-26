@@ -3,7 +3,7 @@
  * Tính năng: tìm kiếm toàn văn, lọc theo tác giả/nhóm/tài khoản/ngày,
  * danh sách phân trang, biểu đồ tần suất từ khóa.
  */
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import {
   Input, Button, Select, DatePicker, Table, Tag, Space,
   Row, Col, Skeleton, Empty, Typography,
@@ -16,7 +16,12 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { useAllComments, type CommentFilter } from "@/hooks/useAllComments";
 import { KeywordFreqChart } from "@/components/charts/KeywordFreqChart";
 import { getAccountNames } from "@/service/importService";
+import { classifySentiment } from "@/utils/sentiment";
 import type { RichComment } from "@/hooks/useAllComments";
+
+const SentimentChart = lazy(() =>
+  import("@/components/charts/SentimentChart").then((m) => ({ default: m.SentimentChart }))
+);
 
 const { Text } = Typography;
 const PAGE_SIZE = 25;
@@ -89,7 +94,7 @@ export default function CommentsPage() {
       title: "Tác giả",
       dataIndex: "authorName",
       key: "authorName",
-      width: 160,
+      width: 150,
       render: (v: string) => (
         <Text strong style={{ fontSize: 13 }}>
           {v || <span style={{ color: "#aaa" }}>—</span>}
@@ -107,10 +112,33 @@ export default function CommentsPage() {
       ),
     },
     {
+      title: "Cảm xúc",
+      dataIndex: "content",
+      key: "sentiment",
+      width: 100,
+      render: (v: string) => {
+        const { sentiment } = classifySentiment(v ?? "");
+        const cfg = {
+          positive: { label: "Tích cực", color: "#1a7f5e", bg: "rgba(62,207,142,0.10)" },
+          neutral:  { label: "Trung lập", color: "#707070", bg: "#f4f4f4" },
+          negative: { label: "Tiêu cực", color: "#dc2626", bg: "rgba(220,38,38,0.08)" },
+        }[sentiment];
+        return (
+          <Tag style={{
+            background: cfg.bg, border: "none",
+            color: cfg.color, borderRadius: 4,
+            fontSize: 11, fontWeight: 600,
+          }}>
+            {cfg.label}
+          </Tag>
+        );
+      },
+    },
+    {
       title: "Nhóm",
       dataIndex: "group",
       key: "group",
-      width: 140,
+      width: 130,
       render: (v: string) =>
         v ? (
           <Tag style={{
@@ -125,7 +153,7 @@ export default function CommentsPage() {
       title: "Tài khoản",
       dataIndex: "accountName",
       key: "accountName",
-      width: 140,
+      width: 130,
       render: (v: string) => (
         <span style={{ fontSize: 12, color: "#6b6b6b" }}>{v}</span>
       ),
@@ -240,18 +268,30 @@ export default function CommentsPage() {
       </div>
 
       <Row gutter={[16, 16]}>
-        {/* Keyword frequency chart — left column */}
+        {/* Left column: keyword chart + sentiment chart */}
         <Col xs={24} lg={8}>
-          {loading ? (
-            <div style={{
-              background: "#fff", border: "1px solid #dfdfdf",
-              borderRadius: 12, padding: "16px 20px",
-            }}>
-              <Skeleton active paragraph={{ rows: 8 }} title={false} />
-            </div>
-          ) : (
-            <KeywordFreqChart comments={comments} topN={20} />
-          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {loading ? (
+              <div style={{
+                background: "#fff", border: "1px solid #dfdfdf",
+                borderRadius: 12, padding: "16px 20px",
+              }}>
+                <Skeleton active paragraph={{ rows: 8 }} title={false} />
+              </div>
+            ) : (
+              <KeywordFreqChart comments={comments} topN={20} />
+            )}
+            <Suspense fallback={
+              <div style={{
+                background: "#fff", border: "1px solid #dfdfdf",
+                borderRadius: 12, padding: "16px 20px",
+              }}>
+                <Skeleton active paragraph={{ rows: 5 }} title={false} />
+              </div>
+            }>
+              <SentimentChart comments={comments} loading={loading} />
+            </Suspense>
+          </div>
         </Col>
 
         {/* Comments table — right column */}

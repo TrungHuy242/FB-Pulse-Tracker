@@ -1,17 +1,34 @@
 /**
  * AnalyticsPage — Trang phân tích sâu.
- * Charts: Timeline, Pie (reaction types), Heatmap, Top Commenters.
+ * Charts: Timeline, Pie (reaction types), Heatmap, Top Commenters,
+ *         SentimentChart, InsightsPanel.
  */
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Row, Col, Button, DatePicker, Select, Space, Tooltip } from "antd";
+import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { Row, Col, Button, DatePicker, Select, Space, Tooltip, Skeleton } from "antd";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
-import { TimelineChart } from "@/components/charts/TimelineChart";
-import { ReactionPieChart } from "@/components/charts/ReactionPieChart";
-import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
-import { TopCommentersChart } from "@/components/charts/TopCommentersChart";
+import { InsightsPanel } from "@/components/InsightsPanel";
+import { useAllEngagement } from "@/hooks/useAllEngagement";
 import { getAccountNames } from "@/service/importService";
 import type { StatsFilter } from "@/types";
+
+// Lazy-load heavy chart components — splits them into separate JS chunks
+const TimelineChart     = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
+const ReactionPieChart  = lazy(() => import("@/components/charts/ReactionPieChart").then(m => ({ default: m.ReactionPieChart })));
+const ActivityHeatmap   = lazy(() => import("@/components/charts/ActivityHeatmap").then(m => ({ default: m.ActivityHeatmap })));
+const TopCommentersChart= lazy(() => import("@/components/charts/TopCommentersChart").then(m => ({ default: m.TopCommentersChart })));
+const SentimentChart    = lazy(() => import("@/components/charts/SentimentChart").then(m => ({ default: m.SentimentChart })));
+
+function ChartSkeleton({ height = 280 }: { height?: number }) {
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid #dfdfdf",
+      borderRadius: 12, padding: "16px 20px",
+    }}>
+      <Skeleton active paragraph={{ rows: Math.round(height / 40) }} title={false} />
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const selectContainerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +72,9 @@ export default function AnalyticsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
+
+  // Load engagement data once for InsightsPanel + SentimentChart
+  const { comments, reactions, loading: engLoading } = useAllEngagement(effectiveFilter, refreshSignal);
 
   const handleFilter = () => {
     let from: Date | undefined;
@@ -122,27 +142,51 @@ export default function AnalyticsPage() {
 
   return (
     <AppLayout title="Analytics" topBar={topBar}>
+      {/* Row 0: Insights + Sentiment (data from shared hook) */}
+      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
+        <Col xs={24} md={14}>
+          <InsightsPanel
+            comments={comments}
+            reactions={reactions}
+            loading={engLoading}
+          />
+        </Col>
+        <Col xs={24} md={10}>
+          <Suspense fallback={<ChartSkeleton height={260} />}>
+            <SentimentChart comments={comments} loading={engLoading} />
+          </Suspense>
+        </Col>
+      </Row>
+
       {/* Row 1: Timeline (full width) */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24}>
-          <TimelineChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+          <Suspense fallback={<ChartSkeleton height={300} />}>
+            <TimelineChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+          </Suspense>
         </Col>
       </Row>
 
       {/* Row 2: Pie chart + Heatmap */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={10}>
-          <ReactionPieChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+          <Suspense fallback={<ChartSkeleton height={260} />}>
+            <ReactionPieChart filter={effectiveFilter} refreshSignal={refreshSignal} />
+          </Suspense>
         </Col>
         <Col xs={24} md={14}>
-          <ActivityHeatmap filter={effectiveFilter} refreshSignal={refreshSignal} />
+          <Suspense fallback={<ChartSkeleton height={260} />}>
+            <ActivityHeatmap filter={effectiveFilter} refreshSignal={refreshSignal} />
+          </Suspense>
         </Col>
       </Row>
 
       {/* Row 3: Top Commenters */}
       <Row gutter={[20, 20]}>
         <Col xs={24}>
-          <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
+          <Suspense fallback={<ChartSkeleton height={260} />}>
+            <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
+          </Suspense>
         </Col>
       </Row>
     </AppLayout>
