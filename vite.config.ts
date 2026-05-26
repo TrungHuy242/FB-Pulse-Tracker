@@ -76,6 +76,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Chỉ chạy unit tests trong src/test/ — E2E tests trong e2e/ chạy qua Playwright
+    include: ["src/test/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
