@@ -175,3 +175,31 @@ export const deleteAllImports = async (): Promise<void> => {
     await deleteImport(imp.id);
   }
 };
+
+/**
+ * Tìm tất cả imports theo tên tài khoản (so sánh sau khi trim).
+ * Dùng cho tính năng re-import detection ở ImportFolder.
+ * Không dùng Firestore where() — client-side filter từ getAllImports()
+ * để tránh tạo composite index.
+ */
+export const findImportsByAccountName = async (
+  accountName: string
+): Promise<ImportRecord[]> => {
+  const normalized = accountName.trim();
+  if (!normalized) return [];
+  const all = await getAllImports();
+  return all.filter((imp) => imp.accountName?.trim() === normalized);
+};
+
+/**
+ * Xóa tất cả imports của một tài khoản (cascade).
+ * Dùng cho replace mode — gọi trước khi upload lại dữ liệu mới.
+ */
+export const deleteImportsByAccountName = async (
+  accountName: string
+): Promise<void> => {
+  const records = await findImportsByAccountName(accountName);
+  for (const r of records) {
+    await deleteImport(r.id);
+  }
+};

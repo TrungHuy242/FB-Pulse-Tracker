@@ -10,6 +10,7 @@ import {
   Typography,
   Tag,
   Tooltip,
+  Space,
 } from "antd";
 import { UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd";
@@ -17,6 +18,7 @@ import JSZip from "jszip";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import "../styles/header.scss";
 import { useLoading } from "@/contexts/LoadingContext";
+import { useImportData } from "@/contexts/ImportDataContext";
 import { decodeFacebookObject } from "@/utils/encoding";
 import { chunkArray } from "@/utils/array";
 import {
@@ -24,11 +26,18 @@ import {
   addCommentChunk,
   addReactionChunk,
   finalizeImport,
+  deleteImport,
 } from "@/service/importService";
 import {
   requestNotificationPermission,
   fireNotification,
 } from "@/utils/notification";
+import {
+  computeTotalChunks,
+  normalizeAccountName,
+  buildImportSummaryLabel,
+  type ImportMode,
+} from "@/utils/importUtils";
 
 const COMMENT_CHUNK_SIZE = 700;
 const REACTION_CHUNK_SIZE = 2000;
@@ -62,6 +71,17 @@ interface ZipJob {
   commentsPreview: number;
   /** Số cảm xúc ước tính (preview) */
   reactionsPreview: number;
+  /**
+   * Import mode:
+   * - "append": tạo import mới bên cạnh import hiện có (mặc định)
+   * - "replace": xóa import hiện có trước, sau đó upload mới
+   */
+  mode: ImportMode;
+  /**
+   * IDs của imports hiện có với cùng accountName.
+   * Được set khi ZIP được đọc, dùng để xóa khi mode === "replace".
+   */
+  existingImportIds: string[];
 }
 
 export interface FormDrawerHandle {
@@ -116,7 +136,16 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
     const [progress, setProgress] = useState(0);
     const [importStep, setImportStep] = useState<number>(-1); // -1 = idle
 
+    /** Progress tracking cho chunk upload (step 2) */
+    const [uploadProgress, setUploadProgress] = useState<{
+      current: number;
+      total: number;
+      jobName: string;
+    }>({ current: 0, total: 0, jobName: "" });
+
     const { showLoading, closeLoading } = useLoading();
+    /** Real-time imports từ context — dùng để phát hiện duplicate account name */
+    const { imports: existingImports } = useImportData();
 
     /* ========================= REACTION HELPERS ========================= */
     const isReactionItem = (item: unknown): item is ReactionRawItem =>
@@ -295,6 +324,16 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         const { commentsPreview, reactionsPreview } =
           computePreviewCounts(parsedFiles);
 
+        // ── Kiểm tra tài khoản trùng với imports hiện có (real-time từ context) ──
+        const normalizedRoot = normalizeAccountName(rootFolderName);
+        const existingImportIds = existingImports
+          .filter(
+            (imp) =>
+              imp.status === "completed" &&
+              normalizeAccountName(imp.accountName) === normalizedRoot
+          )
+          .map((imp) => imp.id);
+
         // ── Tạo ZipJob và thêm vào danh sách ──
         const newJob: ZipJob = {
           id: `${file.name}-${Date.now()}`,
@@ -305,6 +344,8 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           innerFolderNames: Array.from(innerSet),
           commentsPreview,
           reactionsPreview,
+          mode: "append",           // default: luôn thêm mới
+          existingImportIds,        // danh sách import cũ cùng tên
         };
 
         setZipJobs((prev) => [...prev, newJob]);
@@ -318,8 +359,12 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           },
         ]);
 
+        const dupNote =
+          existingImportIds.length > 0
+            ? ` (⚠ ${existingImportIds.length} import cũ cùng tên)`
+            : "";
         message.success(
-          `${file.name}: ${commentsPreview} bình luận, ${reactionsPreview} cảm xúc`
+          `${file.name}: ${commentsPreview} bình luận, ${reactionsPreview} cảm xúc${dupNote}`
         );
         return false;
       } catch (err) {
@@ -343,9 +388,33 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         showLoading("import-data");
         setImportStep(0); // step 0: bắt đầu
 
+        // Pre-compute total upload chunks for accurate progress display
+        const totalChunks = computeTotalChunks(
+          zipJobs,
+          COMMENT_CHUNK_SIZE,
+          REACTION_CHUNK_SIZE
+        );
+        let uploadedChunks = 0;
+        setUploadProgress({ current: 0, total: totalChunks, jobName: "" });
+
         for (let jobIdx = 0; jobIdx < zipJobs.length; jobIdx++) {
           const job = zipJobs[jobIdx];
-          setImportStep(1); // step 1: Phân tích (đã xong ở parse phase, chỉ hiển thị)
+          setImportStep(1); // step 1: Phân tích
+          setUploadProgress((prev) => ({ ...prev, jobName: job.accountName }));
+
+          // ── Replace mode: xóa imports cũ trước khi upload mới ──
+          if (job.mode === "replace" && job.existingImportIds.length > 0) {
+            for (const id of job.existingImportIds) {
+              try {
+                await deleteImport(id);
+              } catch {
+                // Import may have been deleted by another session — skip gracefully
+                console.warn(
+                  `Could not delete import ${id} — may already be deleted`
+                );
+              }
+            }
+          }
 
           // ── Nhóm files theo inner folder ──
           const groupMap: Record<string, ParsedFile[]> = {};
@@ -386,7 +455,9 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
               const d = data as Record<string, unknown>;
               const commentSource =
                 (Array.isArray(d.comments_v2) ? d.comments_v2 : null) ??
-                (Array.isArray(d.group_comments_v2) ? d.group_comments_v2 : null);
+                (Array.isArray(d.group_comments_v2)
+                  ? d.group_comments_v2
+                  : null);
 
               if (commentSource) {
                 const comments = buildCommentItems(
@@ -407,10 +478,19 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
               }
             }
 
-            // Lưu comment chunks qua service layer
+            // ── Lưu comment chunks với progress tracking ──
             const commentChunks = chunkArray(allComments, COMMENT_CHUNK_SIZE);
             if (commentChunks.length === 0) {
-              await addCommentChunk(importRef.id, { index: 0, items: [], count: 0 });
+              await addCommentChunk(importRef.id, {
+                index: 0,
+                items: [],
+                count: 0,
+              });
+              uploadedChunks++;
+              setUploadProgress((prev) => ({
+                ...prev,
+                current: uploadedChunks,
+              }));
             } else {
               for (let i = 0; i < commentChunks.length; i++) {
                 await addCommentChunk(importRef.id, {
@@ -418,13 +498,27 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                   items: commentChunks[i],
                   count: commentChunks[i].length,
                 });
+                uploadedChunks++;
+                setUploadProgress((prev) => ({
+                  ...prev,
+                  current: uploadedChunks,
+                }));
               }
             }
 
-            // Lưu reaction chunks qua service layer
+            // ── Lưu reaction chunks với progress tracking ──
             const reactionChunks = chunkArray(allReactions, REACTION_CHUNK_SIZE);
             if (reactionChunks.length === 0) {
-              await addReactionChunk(importRef.id, { index: 0, items: [], count: 0 });
+              await addReactionChunk(importRef.id, {
+                index: 0,
+                items: [],
+                count: 0,
+              });
+              uploadedChunks++;
+              setUploadProgress((prev) => ({
+                ...prev,
+                current: uploadedChunks,
+              }));
             } else {
               for (let i = 0; i < reactionChunks.length; i++) {
                 await addReactionChunk(importRef.id, {
@@ -432,11 +526,15 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                   items: reactionChunks[i],
                   count: reactionChunks[i].length,
                 });
+                uploadedChunks++;
+                setUploadProgress((prev) => ({
+                  ...prev,
+                  current: uploadedChunks,
+                }));
               }
             }
 
             // Hoàn tất import — dùng accountName của job (do user đã chỉnh)
-            // groupName chỉ là sub-folder name, nhưng accountName là tên chính
             await finalizeImport(importRef.id, {
               accountName: job.accountName?.trim() || groupName,
               commentsCount,
@@ -452,27 +550,14 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         await new Promise((r) => setTimeout(r, 800));
 
         // Thông báo trình duyệt khi import hoàn thành
-        const totalJobs = zipJobs.length;
-        const totalComments = zipJobs.reduce(
-          (sum, j) => sum + j.commentsPreview,
-          0
-        );
-        const totalReactions = zipJobs.reduce(
-          (sum, j) => sum + j.reactionsPreview,
-          0
-        );
+        const summaryBody = buildImportSummaryLabel(zipJobs);
         fireNotification("Import hoàn tất", {
-          body:
-            totalJobs === 1
-              ? `${zipJobs[0].accountName}: ${totalComments} bình luận, ${totalReactions} cảm xúc`
-              : `${totalJobs} tài khoản — ${totalComments} bình luận, ${totalReactions} cảm xúc`,
+          body: summaryBody,
           tag: "import-success",
         });
 
         resetState();
-        message.success(
-          `Import thành công ${totalJobs} tài khoản`
-        );
+        message.success(`Import thành công ${zipJobs.length} tài khoản`);
         onImportSuccess?.();
       } catch (error) {
         setImportStep(-1);
@@ -489,6 +574,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       setFileList([]);
       setProgress(0);
       setImportStep(-1);
+      setUploadProgress({ current: 0, total: 0, jobName: "" });
       setOpen(false);
     };
 
@@ -506,6 +592,12 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       );
     };
 
+    const updateJobMode = (jobId: string, mode: ImportMode) => {
+      setZipJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, mode } : j))
+      );
+    };
+
     /* ========================= MODAL CONTROL ========================= */
     const handleModalClose = () => {
       resetState();
@@ -517,6 +609,10 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
     }));
 
     /* ========================= PREVIEW TABLE ========================= */
+    const replaceCount = zipJobs.filter(
+      (j) => j.mode === "replace" && j.existingImportIds.length > 0
+    ).length;
+
     const previewColumns = [
       {
         title: "Tên tài khoản",
@@ -552,7 +648,9 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         key: "commentsPreview",
         align: "center" as const,
         render: (n: number) => (
-          <Tag color={n > 0 ? "blue" : "default"}>{n.toLocaleString("vi-VN")}</Tag>
+          <Tag color={n > 0 ? "blue" : "default"}>
+            {n.toLocaleString("vi-VN")}
+          </Tag>
         ),
       },
       {
@@ -561,8 +659,56 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         key: "reactionsPreview",
         align: "center" as const,
         render: (n: number) => (
-          <Tag color={n > 0 ? "green" : "default"}>{n.toLocaleString("vi-VN")}</Tag>
+          <Tag color={n > 0 ? "green" : "default"}>
+            {n.toLocaleString("vi-VN")}
+          </Tag>
         ),
+      },
+      {
+        title: "Trạng thái",
+        key: "importStatus",
+        width: 140,
+        render: (_: unknown, record: ZipJob) => {
+          // No existing import with same name → fresh import
+          if (record.existingImportIds.length === 0) {
+            return (
+              <Tag color="success" style={{ fontSize: 11, margin: 0 }}>
+                Mới
+              </Tag>
+            );
+          }
+          // Duplicate detected — show toggle button for mode
+          const isReplace = record.mode === "replace";
+          return (
+            <Space size={4}>
+              <Tag color="warning" style={{ fontSize: 11, margin: 0 }}>
+                Trùng
+              </Tag>
+              <Tooltip
+                title={
+                  isReplace
+                    ? "Xóa import cũ và tạo lại — nhấn để chuyển sang Thêm mới"
+                    : "Thêm import mới bên cạnh import cũ — nhấn để chuyển sang Ghi đè"
+                }
+              >
+                <Button
+                  size="small"
+                  type={isReplace ? "primary" : "default"}
+                  danger={isReplace}
+                  onClick={() =>
+                    updateJobMode(
+                      record.id,
+                      isReplace ? "append" : "replace"
+                    )
+                  }
+                  style={{ fontSize: 11, padding: "0 6px", height: 20 }}
+                >
+                  {isReplace ? "Ghi đè" : "Thêm mới"}
+                </Button>
+              </Tooltip>
+            </Space>
+          );
+        },
       },
       {
         title: "",
@@ -593,7 +739,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         onOk={handleConfirm}
         okText={`Import${zipJobs.length > 1 ? ` (${zipJobs.length} tài khoản)` : ""}`}
         cancelText="Hủy"
-        width={680}
+        width={740}
         okButtonProps={{ disabled: !zipJobs.length }}
         centered
       >
@@ -615,7 +761,9 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                 <Button icon={<UploadOutlined />}>Chọn file ZIP</Button>
               </Upload>
             </div>
-            <p className="ant-upload-text">Nhấn để chọn một hoặc nhiều file ZIP</p>
+            <p className="ant-upload-text">
+              Nhấn để chọn một hoặc nhiều file ZIP
+            </p>
             <p className="ant-upload-hint">
               Hỗ trợ batch import — chọn nhiều file ZIP cùng lúc
             </p>
@@ -635,14 +783,25 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         {/* ── Preview table — hiện sau khi có ít nhất 1 ZIP ── */}
         {zipJobs.length > 0 && importStep === -1 && (
           <div style={{ marginTop: 16 }}>
-            <Typography.Text
-              strong
-              style={{ display: "block", marginBottom: 8, fontSize: 13 }}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
             >
-              Preview import ({zipJobs.length} tài khoản —{" "}
-              {totalComments.toLocaleString("vi-VN")} bình luận,{" "}
-              {totalReactions.toLocaleString("vi-VN")} cảm xúc)
-            </Typography.Text>
+              <Typography.Text strong style={{ fontSize: 13 }}>
+                Preview import ({zipJobs.length} tài khoản —{" "}
+                {totalComments.toLocaleString("vi-VN")} bình luận,{" "}
+                {totalReactions.toLocaleString("vi-VN")} cảm xúc)
+              </Typography.Text>
+              {replaceCount > 0 && (
+                <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                  ⚠ {replaceCount} tài khoản sẽ bị ghi đè
+                </Typography.Text>
+              )}
+            </div>
             <Table
               columns={previewColumns}
               dataSource={zipJobs}
@@ -668,6 +827,39 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                 { title: "Hoàn tất" },
               ]}
             />
+
+            {/* ── Chunk upload progress bar (visible during step 2) ── */}
+            {importStep === 2 && uploadProgress.total > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 4,
+                  }}
+                >
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Đang tải:{" "}
+                    <strong>{uploadProgress.jobName}</strong>
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {uploadProgress.current}/{uploadProgress.total} chunk
+                  </Typography.Text>
+                </div>
+                <Progress
+                  percent={
+                    uploadProgress.total > 0
+                      ? Math.round(
+                          (uploadProgress.current / uploadProgress.total) * 100
+                        )
+                      : 0
+                  }
+                  size="small"
+                  strokeColor="#3ecf8e"
+                />
+              </div>
+            )}
           </div>
         )}
       </Modal>
