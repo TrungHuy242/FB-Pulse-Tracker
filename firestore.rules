@@ -11,7 +11,8 @@ service cloud.firestore {
 
     /**
      * Kiểm tra email có trong allowedAccounts không.
-     * Dùng get() để cross-document check trong security rules.
+     * Dùng exists() thay vì get() để tránh extra read khi chỉ cần biết tồn tại.
+     * Không circular: allowedAccounts.read dùng isAuthenticated(), không dùng hàm này.
      */
     function isAllowedUser() {
       return isAuthenticated() &&
@@ -20,58 +21,106 @@ service cloud.firestore {
 
     /**
      * Kiểm tra user có role admin (role == 1) không.
-     * Đọc document allowedAccounts theo UID để lấy role.
+     * Đọc document allowedAccounts theo UID để lấy role field.
+     * Chỉ gọi khi cần kiểm tra write quyền — tránh gọi cho read thường xuyên.
      */
     function isAdmin() {
       return isAuthenticated() &&
         get(/databases/$(database)/documents/allowedAccounts/$(request.auth.uid)).data.role == 1;
     }
 
+    // ── Validation helpers ────────────────────────────────────────────────────
+
+    /** Kiểm tra dữ liệu import khi tạo mới hợp lệ */
+    function isValidImportCreate() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["totalFiles", "status", "importedAt"])
+          && d.totalFiles is int
+          && d.totalFiles >= 0
+          && d.status == "processing";
+    }
+
+    /** Kiểm tra dữ liệu import khi finalize hợp lệ */
+    function isValidImportUpdate() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["accountName", "commentsCount", "reactionsCount", "status"])
+          && d.accountName is string
+          && d.accountName.size() > 0
+          && d.commentsCount is int
+          && d.commentsCount >= 0
+          && d.reactionsCount is int
+          && d.reactionsCount >= 0
+          && (d.status == "processing" || d.status == "completed");
+    }
+
+    /** Kiểm tra dữ liệu allowedAccount hợp lệ */
+    function isValidAccountData() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["email", "displayName", "role"])
+          && d.email is string
+          && d.email.size() > 0
+          && d.displayName is string
+          && d.role in [0, 1];
+    }
+
     // ── allowedAccounts ───────────────────────────────────────────────────────
-    // Chỉ admin mới được tạo/sửa/xóa tài khoản được phép
-    // User đã đăng nhập được đọc để kiểm tra quyền truy cập
+    // Quản lý danh sách tài khoản được phép truy cập ứng dụng.
     match /allowedAccounts/{accountId} {
-      // Đọc: bất kỳ user đã auth (cần để login flow query email)
+      // Đọc: bất kỳ user đã auth (cần cho login flow kiểm tra quyền truy cập)
+      // Không dùng isAllowedUser() vì sẽ tạo circular dependency
       allow read: if isAuthenticated();
-      // Tạo mới: chỉ admin
-      allow create: if isAdmin();
+
+      // Tạo mới: chỉ admin, dữ liệu phải hợp lệ
+      allow create: if isAdmin() && isValidAccountData();
+
       // Cập nhật: chỉ admin, không được tự thay đổi role của chính mình
-      allow update: if isAdmin() && accountId != request.auth.uid;
+      allow update: if isAdmin()
+                    && accountId != request.auth.uid
+                    && isValidAccountData();
+
       // Xóa: chỉ admin, không được tự xóa chính mình
       allow delete: if isAdmin() && accountId != request.auth.uid;
     }
 
     // ── imports ───────────────────────────────────────────────────────────────
-    // Chỉ user trong whitelist mới được đọc/ghi imports
+    // Dữ liệu import Facebook của người dùng.
+    // Read-only role: xem dữ liệu, không thể import hay xóa.
+    // Admin role: toàn quyền tạo, cập nhật, xóa.
     match /imports/{importId} {
-      // Đọc: user đã auth (read-only cũng xem được)
-      allow read: if isAuthenticated();
-      // Tạo mới import: user đã auth
-      allow create: if isAuthenticated();
-      // Cập nhật: user đã auth (để update status, counts)
-      allow update: if isAuthenticated();
+      // Đọc: chỉ user trong whitelist (cả read-only lẫn admin)
+      allow read: if isAllowedUser();
+
+      // Tạo mới import (bắt đầu quá trình upload): chỉ admin
+      allow create: if isAdmin() && isValidImportCreate();
+
+      // Cập nhật import (finalize sau khi upload xong): chỉ admin
+      allow update: if isAdmin() && isValidImportUpdate();
+
       // Xóa: chỉ admin
       allow delete: if isAdmin();
 
       // ── imports/{importId}/commentChunks ─────────────────────────────────
+      // Sub-collection chứa bình luận theo từng chunk (tối đa 700 items/chunk).
       match /commentChunks/{chunkId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update: if isAuthenticated();
+        allow read: if isAllowedUser();
+        allow create: if isAdmin();
+        allow update: if isAdmin();
         allow delete: if isAdmin();
       }
 
       // ── imports/{importId}/reactionChunks ────────────────────────────────
+      // Sub-collection chứa cảm xúc theo từng chunk (tối đa 2000 items/chunk).
       match /reactionChunks/{chunkId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update: if isAuthenticated();
+        allow read: if isAllowedUser();
+        allow create: if isAdmin();
+        allow update: if isAdmin();
         allow delete: if isAdmin();
       }
     }
 
     // ── Mặc định: từ chối tất cả ─────────────────────────────────────────────
-    // Bất kỳ collection nào chưa được khai báo sẽ bị từ chối
+    // Bất kỳ collection hoặc sub-collection chưa được khai báo ở trên
+    // đều bị từ chối hoàn toàn — bảo vệ khỏi dữ liệu ngẫu nhiên.
     match /{document=**} {
       allow read, write: if false;
     }
