@@ -1,19 +1,27 @@
 /**
  * AnalyticsPage — Trang phân tích sâu.
  * Charts: Timeline, Pie (reaction types), Heatmap, Top Commenters,
- *         SentimentChart, InsightsPanel.
+ *         SentimentChart, InsightsPanel, AI Summary.
  */
 import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { Row, Col, Button, DatePicker, Select, Space, Tooltip, Skeleton } from "antd";
+import { RobotOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import AiSummaryPanel from "@/components/AiSummaryPanel";
 import { PrintReportButton } from "@/components/PrintReportButton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAllEngagement } from "@/hooks/useAllEngagement";
 import { getAccountNames } from "@/service/importService";
+import {
+  summarizeCommentsWithAI,
+  type SummaryResult,
+  SUMMARY_LIMIT,
+} from "@/service/aiSummaryService";
 import type { StatsFilter } from "@/types";
 import { DatePresets } from "@/components/DatePresets";
+import PerformanceScoreTable from "@/components/PerformanceScoreTable";
 
 // Lazy-load heavy chart components — splits them into separate JS chunks
 const TimelineChart      = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
@@ -41,6 +49,12 @@ export default function AnalyticsPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[] | undefined>(undefined);
   const [appliedFilter, setAppliedFilter] = useState<StatsFilter>({});
   const [refreshSignal, setRefreshSignal] = useState(0);
+
+  // AI Summary state
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const fromTime = appliedFilter.from?.getTime() ?? null;
   const toTime = appliedFilter.to?.getTime() ?? null;
@@ -77,8 +91,32 @@ export default function AnalyticsPage() {
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
-  // Load engagement data once for InsightsPanel + SentimentChart
+  // Load engagement data once for InsightsPanel + SentimentChart + AI Summary
   const { comments, reactions, loading: engLoading } = useAllEngagement(effectiveFilter, refreshSignal);
+
+  // ── AI Summary ─────────────────────────────────────────────────────────────
+
+  const handleAiSummary = useCallback(async () => {
+    if (comments.length === 0) return;
+    setSummaryOpen(true);
+    setSummaryLoading(true);
+    setSummaryResult(null);
+    setSummaryError(null);
+
+    const accountName = Array.isArray(appliedFilter.name)
+      ? appliedFilter.name.join(", ")
+      : (appliedFilter.name ?? undefined);
+
+    const input = comments.slice(0, SUMMARY_LIMIT).map((c, i) => ({
+      id: `c${i}`,
+      content: (c as { content?: string }).content ?? "",
+    }));
+
+    const { result, error } = await summarizeCommentsWithAI(input, accountName);
+    setSummaryResult(result);
+    setSummaryError(error);
+    setSummaryLoading(false);
+  }, [comments, appliedFilter.name]);
 
   const handleFilter = () => {
     let from: Date | undefined;
@@ -158,6 +196,16 @@ export default function AnalyticsPage() {
       </div>
       <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
+      <Button
+        size="small"
+        icon={<RobotOutlined />}
+        loading={summaryLoading}
+        disabled={engLoading || comments.length === 0}
+        onClick={handleAiSummary}
+        title={`Tóm tắt AI (tối đa ${SUMMARY_LIMIT} bình luận)`}
+      >
+        Tóm tắt AI
+      </Button>
       <PrintReportButton
         title="Báo cáo Analytics"
         dateLabel={
@@ -172,6 +220,19 @@ export default function AnalyticsPage() {
 
   return (
     <AppLayout title="Analytics" topBar={topBar}>
+      {/* AI Summary Panel — visible after clicking "Tóm tắt AI" */}
+      {summaryOpen && (
+        <div style={{ marginBottom: 20 }}>
+          <AiSummaryPanel
+            loading={summaryLoading}
+            result={summaryResult}
+            error={summaryError}
+            onClose={() => { setSummaryOpen(false); setSummaryResult(null); }}
+            onRetry={handleAiSummary}
+          />
+        </div>
+      )}
+
       {/* Row 0: Insights + Sentiment (data from shared hook) */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={14}>
@@ -233,12 +294,21 @@ export default function AnalyticsPage() {
       </Row>
 
       {/* Row 4: Keyword Frequency — top từ khóa trong bình luận */}
-      <Row gutter={[20, 20]}>
+      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24}>
           <ErrorBoundary inline section="Từ khóa bình luận">
             <Suspense fallback={<ChartSkeleton height={300} />}>
               <KeywordFreqChart comments={comments} topN={20} />
             </Suspense>
+          </ErrorBoundary>
+        </Col>
+      </Row>
+
+      {/* Row 5: Content Performance Score */}
+      <Row gutter={[20, 20]}>
+        <Col xs={24}>
+          <ErrorBoundary inline section="Performance Score">
+            <PerformanceScoreTable />
           </ErrorBoundary>
         </Col>
       </Row>
