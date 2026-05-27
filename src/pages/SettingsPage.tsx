@@ -257,10 +257,10 @@ export default function SettingsPage() {
           <Space direction="vertical" size={6} style={{ width: "100%" }}>
             {[
               { label: "Ứng dụng", value: "FB Pulse Tracker" },
-              { label: "Phiên bản", value: "1.4.0 (Day 14)" },
+              { label: "Phiên bản", value: "1.5.0 (Day 15)" },
               { label: "Stack", value: "React 19 · TypeScript 5.9 · Vite 7 · Firebase 12" },
-              { label: "UI", value: "Ant Design 6 · ECharts 6 · Dark/Light mode" },
-              { label: "Kiến trúc", value: "Firestore Rules · Type Guards · Re-import · AI Summary · Cloud Functions" },
+              { label: "UI", value: "Ant Design 6 · ECharts 6 · Dark/Light mode · PWA" },
+              { label: "Kiến trúc", value: "Onboarding · Type Guards · Firestore Rules · AI Summary · Cloud Functions" },
             ].map(({ label, value }) => (
               <div key={label} style={{
                 display: "flex", justifyContent: "space-between",

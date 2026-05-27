@@ -5,6 +5,7 @@
 import { StatsCards } from "@/components/StatsCards";
 import EngagementChart from "@/components/EngagementChart";
 import { AccountsTable } from "@/components/AccountsTable";
+import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { useRef, useState, useMemo } from "react";
 import { Row, Col, Button, DatePicker, Select, Tooltip, Space } from "antd";
 import { FileTextOutlined } from "@ant-design/icons";
@@ -16,6 +17,7 @@ import { getAccountNames } from "@/service/importService";
 import { useEffect } from "react";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
 import { DatePresets } from "@/components/DatePresets";
+import { useImportData } from "@/contexts/ImportDataContext";
 
 interface AccountsTableRef {
   reloadTable: () => void;
@@ -25,6 +27,9 @@ export default function HomePage() {
   const accountsTableRef = useRef<AccountsTableRef>(null);
   const importRef = useRef<FormDrawerHandle | null>(null);
   const selectContainerRef = useRef<HTMLDivElement>(null);
+
+  /** Dùng để phát hiện trạng thái chưa có dữ liệu (first-time onboarding) */
+  const { imports: allImports, loading: importsLoading } = useImportData();
 
   const [advancedFilter, setAdvancedFilter] = useState<StatsFilter>({});
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
@@ -185,32 +190,42 @@ export default function HomePage() {
     </Space>
   );
 
+  // Onboarding: chưa có dữ liệu nào và không đang loading
+  const showWelcome = !importsLoading && allImports.length === 0;
+
   return (
     <AppLayout title="Tổng quan" topBar={topBar}>
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24} lg={8}>
-          <StatsCards
-            stats={stats}
-            prevStats={prevStats}
-            loading={statsLoading}
-            dateLabel={dateLabel}
-          />
-        </Col>
-        <Col xs={24} lg={16}>
-          <EngagementChart
-            filter={effectiveFilter}
-            refreshSignal={refreshSignal}
-          />
-        </Col>
-      </Row>
+      {/* ── Onboarding empty state ── */}
+      {showWelcome ? (
+        <WelcomeEmptyState onImport={() => importRef.current?.open()} />
+      ) : (
+        <>
+          <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
+            <Col xs={24} lg={8}>
+              <StatsCards
+                stats={stats}
+                prevStats={prevStats}
+                loading={statsLoading}
+                dateLabel={dateLabel}
+              />
+            </Col>
+            <Col xs={24} lg={16}>
+              <EngagementChart
+                filter={effectiveFilter}
+                refreshSignal={refreshSignal}
+              />
+            </Col>
+          </Row>
 
-      <AccountsTable
-        ref={accountsTableRef}
-        filter={effectiveFilter}
-        reloadStats={reloadStats}
-        refreshSignal={refreshSignal}
-        onDataChange={() => setRefreshSignal((s) => s + 1)}
-      />
+          <AccountsTable
+            ref={accountsTableRef}
+            filter={effectiveFilter}
+            reloadStats={reloadStats}
+            refreshSignal={refreshSignal}
+            onDataChange={() => setRefreshSignal((s) => s + 1)}
+          />
+        </>
+      )}
 
       <ImportZip ref={importRef} onImportSuccess={handleImportSuccess} />
     </AppLayout>

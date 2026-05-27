@@ -4,46 +4,73 @@
   <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/Ant_Design-6-0170FE?logo=antdesign&logoColor=white" alt="Ant Design" />
   <img src="https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black" alt="Firebase" />
+  <img src="https://img.shields.io/badge/Tests-269%20passed-3ecf8e?logo=vitest&logoColor=white" alt="269 tests" />
 </p>
 
 # 📊 FB Pulse Tracker
 
-**FB Pulse Tracker** là ứng dụng web theo dõi và phân tích các chỉ số tương tác (engagement) trên Facebook — bao gồm lượt thích (reactions), bình luận (comments), và lượt chia sẻ (shares). Dữ liệu được nhập từ file ZIP xuất ra bởi Facebook, sau đó được lưu trữ trên Firebase Firestore và hiển thị trực quan qua dashboard với biểu đồ tương tác.
+**FB Pulse Tracker** là ứng dụng web nội bộ theo dõi và phân tích chỉ số tương tác (engagement) trên Facebook — bình luận, cảm xúc, và xu hướng theo thời gian. Dữ liệu được nhập từ file ZIP xuất bởi Facebook, lưu trữ trên Firebase Firestore, và phân tích bằng AI (Claude Haiku qua Cloud Functions).
 
 ---
 
-## ✨ Tính năng chính
+## ✨ Tính năng
 
+### Core
 | Tính năng | Mô tả |
 |---|---|
-| 🔐 **Xác thực Google** | Đăng nhập bằng tài khoản Google, kiểm tra danh sách trắng (whitelist) quyền truy cập |
-| 📦 **Import dữ liệu ZIP** | Tải lên file ZIP từ Facebook, tự động phân tích và decode UTF-8 tiếng Việt |
-| 📊 **Dashboard trực quan** | Biểu đồ kết hợp (bar + line) hiển thị engagement theo từng tài khoản |
-| 🔢 **Thẻ thống kê** | Tổng lượt thích, bình luận, và số lần import — cập nhật theo bộ lọc |
-| 🔍 **Bộ lọc nâng cao** | Lọc theo khoảng thời gian, chọn nhiều tài khoản cùng lúc |
-| 💬 **Chi tiết bình luận** | Xem danh sách bình luận chi tiết với tìm kiếm, phân trang, sắp xếp theo thời gian |
-| ❤️ **Chi tiết cảm xúc** | Xem reactions (Like, Love, Haha, Sad, Wow) với icon trực quan |
-| 📥 **Xuất Excel** | Export toàn bộ hoặc theo lựa chọn ra file `.xlsx` có công thức tổng hợp |
-| 👥 **Quản trị tài khoản** | Trang Admin quản lý danh sách tài khoản được phép truy cập (CRUD) |
-| 🛡️ **Phân quyền** | Admin (role: 1) có toàn quyền, Read-only (role: 0) chỉ xem |
-| 📱 **Responsive** | Giao diện tương thích trên cả desktop và thiết bị di động |
+| 🔐 **Xác thực Google** | Đăng nhập Google, kiểm tra whitelist quyền truy cập theo UID |
+| 📦 **Import ZIP** | Batch import nhiều file ZIP, re-import với chế độ append/replace, phát hiện trùng lặp |
+| 🔄 **Real-time sync** | `onSnapshot` Firestore — cập nhật tức thì không cần reload |
+| 📊 **Dashboard** | Biểu đồ engagement, thẻ thống kê có delta so sánh, bộ lọc nâng cao |
+| 🗂️ **Date Presets** | Nhanh: Hôm nay, 7 ngày, 30 ngày, Tháng này, Năm nay |
+
+### Phân tích
+| Tính năng | Mô tả |
+|---|---|
+| 📈 **Analytics Page** | Timeline, Pie chart, Heatmap, Top Commenters, Keyword Frequency |
+| 🧠 **AI Sentiment** | Phân tích cảm xúc bình luận (Claude Haiku) theo từng batch, badge per-row |
+| 💬 **AI Summary** | Tóm tắt toàn bộ bình luận thành highlights + keywords + action items |
+| 🏆 **Performance Score** | Điểm 0–100 + xếp hạng A–F cho từng import (engagement rate, volume) |
+| 🔍 **Auto Insights** | 7 loại insight tự động: peak hour, top commenter, spike, v.v. |
+
+### Quản lý dữ liệu
+| Tính năng | Mô tả |
+|---|---|
+| 💬 **Comments Page** | Xem chi tiết bình luận, tìm kiếm, lọc theo cảm xúc AI, xuất CSV/JSON/Excel |
+| ❤️ **Reactions Page** | Danh sách cảm xúc (Like/Love/Haha/Sad/Wow/Care) với icon |
+| 🗑️ **Bulk delete** | Xóa nhiều import cùng lúc (admin only) |
+| 📥 **Export** | CSV, JSON, Excel (.xlsx) với AI sentiment column |
+
+### Hạ tầng
+| Tính năng | Mô tả |
+|---|---|
+| 🔒 **Firestore Rules** | Tách biệt read (isAllowedUser) / write (isAdmin), validation dữ liệu |
+| 🛡️ **Type Guards** | Runtime type guards cho tất cả entity (ImportRecord, CommentItem, v.v.) |
+| 📱 **PWA** | Offline support qua Service Worker (vite-plugin-pwa + Workbox) |
+| 📊 **Sentry** | Error monitoring, performance tracking (production) |
+| 🎭 **Playwright E2E** | End-to-end test suite |
+| ⚡ **Vitest** | 23 test files, 269 tests pass |
 
 ---
 
-## 🛠️ Công nghệ sử dụng
+## 🛠️ Công nghệ
 
 | Công nghệ | Phiên bản | Mục đích |
 |---|---|---|
-| [React](https://react.dev/) | 19 | UI Framework |
-| [TypeScript](https://www.typescriptlang.org/) | 5.9 | Ngôn ngữ lập trình |
-| [Vite](https://vite.dev/) | 7 | Build tool & dev server |
-| [Ant Design](https://ant.design/) | 6 | Thư viện UI component |
-| [Firebase](https://firebase.google.com/) | 12 | Authentication & Firestore Database |
-| [ECharts](https://echarts.apache.org/) | 6 | Biểu đồ tương tác |
-| [XLSX (SheetJS)](https://sheetjs.com/) | 0.18 | Xuất file Excel |
-| [JSZip](https://stuk.github.io/jszip/) | 3.10 | Đọc và giải nén file ZIP |
-| [Day.js](https://day.js.org/) | 1.11 | Xử lý ngày tháng |
+| [React](https://react.dev/) | 19 | UI framework |
+| [TypeScript](https://www.typescriptlang.org/) | 5.9 strict | Ngôn ngữ (strict mode, noUnusedLocals) |
+| [Vite](https://vite.dev/) | 7 | Build tool + HMR |
+| [Ant Design](https://ant.design/) | 6 | UI components |
+| [Firebase](https://firebase.google.com/) | 12 | Auth + Firestore + Cloud Functions |
+| [ECharts](https://echarts.apache.org/) | 6 | Interactive charts |
+| [Anthropic SDK](https://docs.anthropic.com/) | — | Claude Haiku (Cloud Functions only) |
+| [XLSX / SheetJS](https://sheetjs.com/) | 0.18 | Excel export |
+| [JSZip](https://stuk.github.io/jszip/) | 3.10 | Đọc/giải nén ZIP |
+| [Day.js](https://day.js.org/) | 1.11 | Date handling |
 | [Sass](https://sass-lang.com/) | 1.97 | CSS preprocessor |
+| [Vitest](https://vitest.dev/) | — | Unit tests |
+| [Playwright](https://playwright.dev/) | — | E2E tests |
+| [Sentry](https://sentry.io/) | 10 | Error tracking |
 
 ---
 
@@ -51,197 +78,146 @@
 
 ```
 fb-pulse-tracker/
-├── public/                         # Static assets
+├── functions/                     # Firebase Cloud Functions
+│   └── src/index.ts               # analyzeSentiment + summarizeComments
+│                                    (Claude Haiku, server-side only)
+├── public/                        # Static assets
 ├── src/
-│   ├── assets/                     # Hình ảnh, SVG
-│   ├── components/                 # Các component tái sử dụng
-│   │   ├── AccountsTable/
-│   │   │   └── hooks/
-│   │   │       ├── useAccountsTable.tsx    # Hook quản lý dữ liệu bảng
-│   │   │       ├── useImportComments.tsx   # Hook lấy bình luận theo import
-│   │   │       └── useImportReactions.tsx  # Hook lấy cảm xúc theo import
-│   │   ├── AccountsTable.tsx       # Bảng danh sách tài khoản đã import
-│   │   ├── CommentDetails.tsx      # Modal chi tiết bình luận
-│   │   ├── EngagementChart.tsx     # Biểu đồ engagement (ECharts)
-│   │   ├── ErrorBoundary.tsx       # Xử lý lỗi React
-│   │   ├── exportAllImportsToExcel.ts  # Xuất dữ liệu ra Excel
-│   │   ├── Header.tsx              # Header với bộ lọc và điều hướng
-│   │   ├── ImportFolder.tsx        # Modal import file ZIP
-│   │   ├── LoadingOverlay.tsx      # Overlay loading toàn trang
-│   │   ├── ReactionDetails.tsx     # Modal chi tiết cảm xúc
-│   │   └── StatsCards.tsx          # Thẻ thống kê tổng hợp
+│   ├── components/                # UI components
+│   │   ├── charts/                # ECharts: Timeline, Pie, Heatmap,
+│   │   │                            TopCommenters, Sentiment, KeywordFreq
+│   │   ├── AccountsTable.tsx      # Bảng import với bulk delete
+│   │   ├── AiSummaryPanel.tsx     # Panel tóm tắt AI
+│   │   ├── DatePresets.tsx        # Nút preset thời gian
+│   │   ├── ErrorBoundary.tsx      # React error boundary (Sentry)
+│   │   ├── ImportFolder.tsx       # Modal import ZIP + re-import detection
+│   │   ├── InsightsPanel.tsx      # Auto insights panel
+│   │   ├── PerformanceScoreTable.tsx  # Bảng điểm A–F
+│   │   ├── PrintReportButton.tsx  # In báo cáo
+│   │   ├── StatsCards.tsx         # 4 thẻ thống kê + delta
+│   │   └── WelcomeEmptyState.tsx  # Onboarding khi chưa có dữ liệu
 │   ├── contexts/
-│   │   ├── AuthContext.tsx         # Context xác thực & phân quyền
-│   │   └── LoadingContext.tsx      # Context quản lý trạng thái loading
+│   │   ├── AuthContext.tsx        # Google Auth + role
+│   │   ├── ImportDataContext.tsx  # Real-time onSnapshot cache
+│   │   ├── LoadingContext.tsx     # Global loading overlay
+│   │   └── ThemeContext.tsx       # Dark/Light mode
 │   ├── hooks/
-│   │   └── useStats.tsx            # Hook tính toán thống kê tổng hợp
+│   │   ├── useAllEngagement.ts    # Load comments + reactions
+│   │   ├── useInsights.ts         # 7 loại auto insight
+│   │   ├── usePerformanceScore.ts # Tính điểm A–F
+│   │   └── useStats.ts            # Thống kê tổng hợp
+│   ├── layouts/
+│   │   └── AppLayout.tsx          # Sidebar + topbar layout
 │   ├── pages/
-│   │   ├── AdminPage.tsx           # Trang quản trị tài khoản
-│   │   ├── HomePage.tsx            # Trang dashboard chính
-│   │   └── LoginPage.tsx           # Trang đăng nhập
+│   │   ├── AdminPage.tsx          # Quản lý tài khoản
+│   │   ├── AnalyticsPage.tsx      # Biểu đồ sâu + AI Summary
+│   │   ├── CommentsPage.tsx       # Chi tiết bình luận + AI badge
+│   │   ├── HomePage.tsx           # Dashboard tổng quan
+│   │   ├── LandingPage.tsx        # Trang giới thiệu
+│   │   ├── LoginPage.tsx          # Đăng nhập Google
+│   │   ├── ReactionsPage.tsx      # Chi tiết cảm xúc
+│   │   └── SettingsPage.tsx       # Cài đặt + thông tin ứng dụng
 │   ├── service/
-│   │   └── firebase.ts            # Cấu hình Firebase SDK
-│   ├── styles/                     # SCSS stylesheets
-│   ├── App.tsx                     # Router & theme configuration
-│   └── main.tsx                    # Entry point
-├── .env                            # Biến môi trường Firebase (không commit)
-├── vercel.json                     # Cấu hình deploy Vercel (SPA rewrite)
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+│   │   ├── aiSentimentService.ts  # Gọi analyzeSentiment Cloud Function
+│   │   ├── aiSummaryService.ts    # Gọi summarizeComments Cloud Function
+│   │   ├── firebase.ts            # Firebase SDK init
+│   │   ├── importService.ts       # Firestore CRUD + findByAccountName
+│   │   └── queryCache.ts          # TTL cache cho queries
+│   ├── test/                      # 23 test files (Vitest)
+│   ├── types/
+│   │   ├── index.ts               # Core interfaces
+│   │   └── guards.ts              # Runtime type guards
+│   └── utils/
+│       ├── array.ts               # chunkArray
+│       ├── encoding.ts            # Facebook UTF-8 decode
+│       ├── importUtils.ts         # computeTotalChunks, detectModeConflicts
+│       ├── notification.ts        # Browser notifications
+│       └── sentiment.ts           # Rule-based sentiment scoring
+├── firestore.rules                # Security rules (isAllowedUser + isAdmin)
+├── .env                           # Firebase config (không commit)
+├── firebase.json                  # Cloud Functions + Firestore + Emulators
+├── vercel.json                    # SPA rewrite cho Vercel
+├── vite.config.ts                 # Vite + PWA + path aliases
+└── package.json
 ```
 
 ---
 
-## 🗄️ Cấu trúc Firestore Database
+## 🗄️ Cấu trúc Firestore
 
-### Collection: `allowedAccounts`
-Danh sách tài khoản được phép đăng nhập vào hệ thống.
-
+### `allowedAccounts/{uid}`
 | Field | Type | Mô tả |
 |---|---|---|
-| `email` | `string` | Địa chỉ Gmail của người dùng |
-| `displayName` | `string` | Tên hiển thị |
-| `role` | `number` | `1` = Admin (toàn quyền), `0` = Read-only |
+| `email` | string | Gmail người dùng |
+| `displayName` | string | Tên hiển thị |
+| `role` | 0 \| 1 | `1` = Admin, `0` = Read-only |
 
-### Collection: `imports`
-Mỗi document đại diện cho một lần import dữ liệu Facebook.
-
+### `imports/{id}`
 | Field | Type | Mô tả |
 |---|---|---|
-| `accountName` | `string` | Tên tài khoản / thư mục đã import |
-| `commentsCount` | `number` | Tổng số bình luận |
-| `reactionsCount` | `number` | Tổng số lượt thích / cảm xúc |
-| `sharesCount` | `number` | Tổng số lượt chia sẻ |
-| `importedAt` | `Timestamp` | Thời điểm import (server timestamp) |
-| `status` | `string` | `"processing"` hoặc `"completed"` |
+| `accountName` | string | Tên tài khoản Facebook |
+| `commentsCount` | number | Tổng bình luận |
+| `reactionsCount` | number | Tổng cảm xúc |
+| `totalFiles` | number | Số file JSON đã import |
+| `importedAt` | Timestamp | Server timestamp |
+| `status` | "processing" \| "completed" | Trạng thái |
 
-### Sub-collection: `imports/{id}/commentChunks`
-Bình luận được chia thành các chunk (tối đa **700 items/chunk**).
-
-| Field | Type | Mô tả |
-|---|---|---|
-| `index` | `number` | Chỉ số chunk |
-| `count` | `number` | Số lượng bình luận trong chunk |
-| `items` | `array` | Mảng các object `{ authorName, content, commentTime, title, group }` |
-
-### Sub-collection: `imports/{id}/reactionChunks`
-Cảm xúc được chia thành các chunk (tối đa **2000 items/chunk**).
-
-| Field | Type | Mô tả |
-|---|---|---|
-| `index` | `number` | Chỉ số chunk |
-| `count` | `number` | Số lượng cảm xúc trong chunk |
-| `items` | `array` | Mảng các object `{ reaction, linkPost, commentAuthorName, ownerName, reactionTime, fbid }` |
+### `imports/{id}/commentChunks/{cid}` — tối đa 700 items/chunk
+### `imports/{id}/reactionChunks/{cid}` — tối đa 2000 items/chunk
 
 ---
 
-## 🚀 Hướng dẫn cài đặt & chạy
+## 🚀 Cài đặt & chạy
 
-### Yêu cầu hệ thống
+### Yêu cầu
+- Node.js ≥ 18, npm ≥ 9
 
-- [Node.js](https://nodejs.org/) >= 18
-- [npm](https://www.npmjs.com/) >= 9
-- Tài khoản [Google / Gmail](https://accounts.google.com/)
+### Bước 1 — Firebase Project
 
-### Bước 1 — Tạo Firebase Project
-
-1. Truy cập [Firebase Console](https://console.firebase.google.com/) và tạo project mới.
-2. Bật **Authentication** → **Sign-in method** → Kích hoạt **Google**.
-3. Tạo **Firestore Database** (chọn **test mode** cho môi trường phát triển).
-4. Trong Firestore, tạo collection `allowedAccounts` và thêm document đầu tiên:
+1. Vào [Firebase Console](https://console.firebase.google.com/), tạo project mới.
+2. Bật **Authentication → Google**.
+3. Tạo **Firestore Database** (production mode — rules đã có sẵn).
+4. Tạo collection `allowedAccounts`, thêm document đầu tiên (dùng UID làm document ID):
    ```
-   email: "your-email@gmail.com"
+   email: "your@gmail.com"
    displayName: "Your Name"
    role: 1
    ```
-5. Vào **Project Settings** → **General** → Đăng ký **Web App** → Copy thông tin `firebaseConfig`.
+5. **Project Settings → Web App** → copy `firebaseConfig`.
 
-### Bước 2 — Cấu hình biến môi trường
+### Bước 2 — Biến môi trường
 
-Tạo file `.env` tại thư mục gốc của dự án:
+Tạo `.env` tại thư mục gốc:
 
 ```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
 ```
 
-> ⚠️ **Lưu ý:** File `.env` đã được thêm vào `.gitignore` — không bao giờ commit lên repository.
+> ⚠️ `.env` đã có trong `.gitignore` — không bao giờ commit.
 
-### Bước 3 — Cài đặt và chạy
+### Bước 3 — AI (Cloud Functions — tuỳ chọn)
+
+Để dùng tính năng AI Sentiment + AI Summary, cần deploy Cloud Functions:
 
 ```bash
-# Clone repository
-git clone https://github.com/TrungHuy242/FB-Pulse-Tracker.git
-cd FB-Pulse-Tracker
-
-# Cài đặt dependencies
+cd functions
 npm install
-
-# Khởi chạy dev server
-npm run dev
+# Set API key — CHỈ trên server, không bao giờ để trong frontend
+firebase functions:secrets:set ANTHROPIC_API_KEY
+firebase deploy --only functions
 ```
 
-Ứng dụng sẽ chạy tại `http://localhost:5173`.
-
-### Bước 4 — Đăng nhập & import dữ liệu
-
-1. Mở trình duyệt truy cập `http://localhost:5173`.
-2. Nhấn **"Đăng nhập bằng Google"** với tài khoản Gmail đã thêm vào `allowedAccounts`.
-3. Nhấn nút **Import** trên header → Tải lên file **ZIP** chứa dữ liệu Facebook.
-4. Dashboard sẽ tự động hiển thị dữ liệu sau khi import thành công.
-
----
-
-## 📦 Cấu trúc file ZIP hỗ trợ
-
-Ứng dụng hỗ trợ đọc file ZIP chứa dữ liệu Facebook đã tải xuống, với cấu trúc thư mục:
-
-```
-your_facebook_data.zip
-└── AccountName/
-    ├── comments/
-    │   ├── comments_v2.json        # hoặc group_comments_v2.json
-    │   └── ...
-    └── likes_and_reactions/
-        ├── posts_and_comments.json
-        └── ...
-```
-
-**Định dạng JSON được hỗ trợ:**
-- **Bình luận:** File chứa key `comments_v2` hoặc `group_comments_v2` (mảng object)
-- **Cảm xúc:** File chứa mảng object với `label_values` bao gồm các label: `"Cảm xúc"`, `"URL"`, `"Tên"`
-- Hỗ trợ **ZIP lồng nhau** (nested ZIP)
-- Tự động **decode UTF-8** cho text tiếng Việt từ Facebook
-
----
-
-## 🏗️ Build cho production
+### Bước 4 — Chạy
 
 ```bash
-# Build
-npm run build
-
-# Preview bản build
-npm run preview
+npm install
+npm run dev        # http://localhost:5173
 ```
-
-Output sẽ được tạo trong thư mục `dist/`.
-
----
-
-## 🌐 Deploy
-
-Dự án đã được cấu hình sẵn cho **Vercel** với file `vercel.json` (SPA rewrite). Để deploy:
-
-1. Push code lên GitHub repository.
-2. Kết nối repository với [Vercel](https://vercel.com/).
-3. Thêm các biến môi trường (`VITE_FIREBASE_*`) trong phần **Environment Variables** của Vercel.
-4. Deploy tự động khi push code.
 
 ---
 
@@ -249,23 +225,52 @@ Dự án đã được cấu hình sẵn cho **Vercel** với file `vercel.json`
 
 | Lệnh | Mô tả |
 |---|---|
-| `npm run dev` | Khởi chạy dev server (HMR) |
-| `npm run build` | Build production (TypeScript check + Vite build) |
-| `npm run preview` | Preview bản build production |
-| `npm run lint` | Kiểm tra code với ESLint |
+| `npm run dev` | Dev server với HMR |
+| `npm run build` | TypeScript check + Vite build |
+| `npm run preview` | Preview bản build |
+| `npm run lint` | ESLint |
+| `npm test` | Chạy toàn bộ unit tests (Vitest) |
+| `npm run test:watch` | Tests ở chế độ watch |
+| `npm run test:coverage` | Tests + coverage report |
+| `npm run test:e2e` | Playwright E2E tests |
 
 ---
 
 ## 🗺️ Routes
 
-| Đường dẫn | Trang | Quyền truy cập |
+| Đường dẫn | Trang | Quyền |
 |---|---|---|
-| `/login` | Trang đăng nhập Google | Công khai |
-| `/` | Dashboard chính | Yêu cầu đăng nhập |
-| `/admin` | Quản trị tài khoản | Yêu cầu đăng nhập |
+| `/landing` | Giới thiệu ứng dụng | Công khai |
+| `/login` | Đăng nhập Google | Công khai |
+| `/` | Dashboard tổng quan | Auth |
+| `/analytics` | Biểu đồ sâu + AI | Auth |
+| `/comments` | Chi tiết bình luận | Auth |
+| `/reactions` | Chi tiết cảm xúc | Auth |
+| `/settings` | Cài đặt ứng dụng | Auth |
+| `/admin` | Quản lý tài khoản | Admin |
+
+---
+
+## 🔒 Bảo mật
+
+- **Firestore Rules**: read yêu cầu `isAllowedUser()`, write yêu cầu `isAdmin()`
+- **API key AI**: chỉ tồn tại trong Firebase Secret Manager (server-side)
+- **Frontend**: không có credentials nhạy cảm, chỉ có `VITE_FIREBASE_*` (public config)
+- **Role enforcement**: cả UI layer và Firestore Rules
+
+---
+
+## 🌐 Deploy
+
+Cấu hình sẵn cho **Vercel** (file `vercel.json`):
+
+1. Push lên GitHub.
+2. Kết nối repo với [Vercel](https://vercel.com/).
+3. Thêm `VITE_FIREBASE_*` vào Environment Variables.
+4. Deploy tự động khi push.
 
 ---
 
 ## 📄 License
 
-Dự án này là **private**. Không được chia sẻ public khi chưa có sự cho phép.
+Dự án nội bộ — không chia sẻ công khai khi chưa được phép.
