@@ -320,7 +320,77 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
           setProgress(Math.round((parseProgress / collected.length) * 100));
         }
 
-        // ── Tính preview counts ──
+        // ── Phát hiện ZIP đa-profile ──
+        // Case 1: root/profileName/category/file.json (depth >= 4) — wrapper ZIP
+        // Case 2: profileA/category/file.json, profileB/... (nhiều root khác nhau)
+        const hasDeepStructure = parsedFiles.some(
+          (f) => f.name.split("/").filter(Boolean).length >= 4
+        );
+        const distinctRoots = new Set(
+          parsedFiles.map((f) => f.name.split("/").filter(Boolean)[0]).filter(Boolean)
+        );
+        // profileIndex: parts index chứa tên profile
+        // Case 1: parts[1]; Case 2: parts[0]
+        const isMultiProfile = hasDeepStructure || distinctRoots.size > 1;
+        const profilePartIndex = hasDeepStructure ? 1 : 0;
+
+        if (isMultiProfile) {
+          // Nhóm parsedFiles theo tên profile
+          const profileGroups = new Map<string, ParsedFile[]>();
+          for (const f of parsedFiles) {
+            const parts = f.name.split("/").filter(Boolean);
+            const profileName = parts[profilePartIndex] ?? rootFolderName;
+            if (!profileGroups.has(profileName)) profileGroups.set(profileName, []);
+            profileGroups.get(profileName)!.push(f);
+          }
+
+          let totalCmt = 0;
+          let totalRxn = 0;
+          const newJobs: ZipJob[] = [];
+
+          for (const [profileName, profileFiles] of profileGroups) {
+            const { commentsPreview, reactionsPreview } = computePreviewCounts(profileFiles);
+            totalCmt += commentsPreview;
+            totalRxn += reactionsPreview;
+
+            const normalizedProfile = normalizeAccountName(profileName);
+            const profileExistingIds = existingImports
+              .filter(
+                (imp) =>
+                  imp.status === "completed" &&
+                  normalizeAccountName(imp.accountName) === normalizedProfile
+              )
+              .map((imp) => imp.id);
+
+            newJobs.push({
+              id: `${file.name}-${profileName}-${Date.now()}`,
+              fileName: file.name,
+              accountName: profileName,
+              originalFolderName: profileName,
+              parsedFiles: profileFiles,
+              innerFolderNames: [],   // không cần inner grouping ở cấp này
+              commentsPreview,
+              reactionsPreview,
+              mode: "append",
+              existingImportIds: profileExistingIds,
+            });
+          }
+
+          setZipJobs((prev) => [...prev, ...newJobs]);
+          setFileList((prev) => [
+            ...prev,
+            { uid: file.name, name: file.name, status: "done", size: file.size },
+          ]);
+
+          const dupProfiles = newJobs.filter((j) => j.existingImportIds.length > 0).length;
+          const dupText = dupProfiles > 0 ? ` (⚠ ${dupProfiles} profile trùng tên)` : "";
+          message.success(
+            `${file.name}: ${profileGroups.size} profiles — ${totalCmt} bình luận, ${totalRxn} cảm xúc${dupText}`
+          );
+          return false;
+        }
+
+        // ── ZIP đơn-profile (behavior gốc) ──
         const { commentsPreview, reactionsPreview } =
           computePreviewCounts(parsedFiles);
 
@@ -580,8 +650,13 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
 
     const removeJob = (jobId: string) => {
       const job = zipJobs.find((j) => j.id === jobId);
-      if (job) {
-        setZipJobs((prev) => prev.filter((j) => j.id !== jobId));
+      if (!job) return;
+      const remainingFromSameFile = zipJobs.filter(
+        (j) => j.id !== jobId && j.fileName === job.fileName
+      );
+      setZipJobs((prev) => prev.filter((j) => j.id !== jobId));
+      // Chỉ xóa fileList entry khi không còn job nào từ cùng ZIP
+      if (remainingFromSameFile.length === 0) {
         setFileList((prev) => prev.filter((f) => f.uid !== job.fileName));
       }
     };
