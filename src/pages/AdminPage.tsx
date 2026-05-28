@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AdminPage — Quản lý tài khoản được phép đăng nhập.
  * Chỉ dành cho admin (role === 1).
  *
@@ -194,7 +194,7 @@ const AdminPage: React.FC = () => {
           icon: <ExclamationCircleOutlined />,
           content: (
             <div>
-              <p style={{ color: "#dc2626", fontWeight: 600 }}>⚠ Toàn bộ dữ liệu sẽ bị xóa vĩnh viễn.</p>
+              <p style={{ color: "#dc2626", fontWeight: 600, margin: "0 0 4px" }}>Toàn bộ dữ liệu sẽ bị xóa vĩnh viễn.</p>
               <p style={{ color: "#5a5a5a", fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
             </div>
           ),

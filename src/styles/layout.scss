@@ -190,10 +190,16 @@
       // Override user button inline styles with CSS vars
       button.sidebar-user-btn {
         background: var(--footer-user-bg) !important;
-        border-color: var(--footer-user-border) !important;
+        border: 1px solid var(--footer-user-border) !important;
+        outline: none;
 
         &:hover {
           background: var(--footer-user-hover) !important;
+        }
+
+        &:focus-visible {
+          outline: 2px solid #3ecf8e;
+          outline-offset: 2px;
         }
 
         .sidebar-user-name { color: var(--footer-user-name); }

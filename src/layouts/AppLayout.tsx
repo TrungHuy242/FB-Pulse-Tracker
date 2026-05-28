@@ -139,6 +139,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
           {user && (
             <Dropdown menu={{ items: userMenuItems }} placement="topLeft" trigger={["click"]}>
               <button
+                className="sidebar-user-btn"
                 style={{
                   width: "100%",
                   display: "flex",
@@ -146,13 +147,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
                   gap: 10,
                   padding: "8px 10px",
                   borderRadius: 8,
-                  border: "1px solid #dfdfdf",
-                  background: "#ffffff",
                   cursor: "pointer",
                   transition: "background 110ms",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f5f5")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
               >
                 <Avatar
                   icon={<UserOutlined />}
@@ -160,17 +157,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
                   style={{ background: "#3ecf8e", color: "#171717", flexShrink: 0 }}
                 />
                 <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                  <div style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#171717",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}>
+                  <div
+                    className="sidebar-user-name"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {user.displayName ?? user.email ?? ""}
                   </div>
-                  <div style={{ fontSize: 10, color: "#8a8a8a" }}>
+                  <div className="sidebar-user-role" style={{ fontSize: 10 }}>
                     {user.role === 1 ? "Admin" : "Read-only"}
                   </div>
                 </div>

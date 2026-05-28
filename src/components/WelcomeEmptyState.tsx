@@ -169,18 +169,10 @@ export function WelcomeEmptyState({ onImport }: WelcomeEmptyStateProps) {
         <div style={{ textAlign: "center", marginTop: 4 }}>
           <Button
             type="primary"
-            size="middle"
+            size="large"
             icon={<UploadOutlined />}
             onClick={onImport}
-            style={{
-              background: "#3ecf8e",
-              borderColor: "#3ecf8e",
-              color: "#171717",
-              fontWeight: 600,
-              borderRadius: 8,
-              padding: "0 28px",
-              height: 40,
-            }}
+            style={{ fontWeight: 600, paddingInline: 28 }}
           >
             Import dữ liệu ngay
           </Button>

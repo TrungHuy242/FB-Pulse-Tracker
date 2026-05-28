@@ -575,9 +575,9 @@ export default function CommentsPage() {
         onChange={(v) => setSelectedSentiment(v as typeof selectedSentiment)}
         allowClear
       >
-        <Select.Option value="positive">😊 Tích cực</Select.Option>
-        <Select.Option value="neutral">😐 Trung lập</Select.Option>
-        <Select.Option value="negative">😢 Tiêu cực</Select.Option>
+        <Select.Option value="positive">Tích cực</Select.Option>
+        <Select.Option value="neutral">Trung lập</Select.Option>
+        <Select.Option value="negative">Tiêu cực</Select.Option>
       </Select>
       <DatePicker.RangePicker
         value={range}

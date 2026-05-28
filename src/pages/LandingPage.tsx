@@ -27,22 +27,22 @@ import { useEffect } from "react";
 
 const FEATURES = [
   {
-    icon: <FileZipOutlined style={{ fontSize: 22, color: "#3ecf8e" }} />,
+    icon: <FileZipOutlined style={{ fontSize: 18, color: "#707070" }} />,
     title: "Import ZIP không cần API",
     desc: "Tải file Data Export từ Facebook Settings — không cần API key, không cần kết nối app.",
   },
   {
-    icon: <RiseOutlined style={{ fontSize: 22, color: "#3ecf8e" }} />,
+    icon: <RiseOutlined style={{ fontSize: 18, color: "#707070" }} />,
     title: "Analytics real-time",
     desc: "Dashboard với biểu đồ timeline, heatmap, reaction pie chart. Lọc theo ngày và tài khoản.",
   },
   {
-    icon: <CommentOutlined style={{ fontSize: 22, color: "#3ecf8e" }} />,
+    icon: <CommentOutlined style={{ fontSize: 18, color: "#707070" }} />,
     title: "Phân tích bình luận sâu",
     desc: "Tìm kiếm toàn văn, lọc sentiment (tích cực/trung lập/tiêu cực), xuất CSV.",
   },
   {
-    icon: <RobotOutlined style={{ fontSize: 22, color: "#3ecf8e" }} />,
+    icon: <RobotOutlined style={{ fontSize: 18, color: "#707070" }} />,
     title: "AI Insights tự động",
     desc: "Phát hiện giờ cao điểm, spike bất thường, người dùng tích cực nhất — không cần cài đặt.",
   },
@@ -83,8 +83,7 @@ export default function LandingPage() {
       {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <header style={{
         position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(8px)",
+        background: "#ffffff",
         borderBottom: "1px solid #dfdfdf",
         padding: "0 24px",
         height: 52,
@@ -128,18 +127,19 @@ export default function LandingPage() {
         {/* Badge */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "4px 12px",
+          padding: "3px 10px",
           background: "rgba(62,207,142,0.10)",
-          border: "1px solid rgba(62,207,142,0.25)",
-          borderRadius: 20,
-          fontSize: 12, fontWeight: 600, color: "#1a7f5e",
-          letterSpacing: "0.04em", textTransform: "uppercase",
+          border: "1px solid rgba(62,207,142,0.20)",
+          borderRadius: 4,
+          fontSize: 11, fontWeight: 700, color: "#1a7f5e",
+          letterSpacing: "0.07em", textTransform: "uppercase",
           marginBottom: 24,
         }}>
           <span style={{
-            width: 6, height: 6,
+            width: 5, height: 5,
             background: "#3ecf8e", borderRadius: "50%",
             display: "inline-block",
+            flexShrink: 0,
           }} />
           Internal Analytics Tool
         </div>
@@ -213,40 +213,43 @@ export default function LandingPage() {
       }}>
         {/* Section title */}
         <div style={{
-          textAlign: "center",
-          fontSize: 11, fontWeight: 600, color: "#8a8a8a",
-          letterSpacing: "0.1em", textTransform: "uppercase",
-          marginBottom: 32,
+          fontSize: 11, fontWeight: 700, color: "#8a8a8a",
+          letterSpacing: "0.08em", textTransform: "uppercase",
+          marginBottom: 24,
         }}>
           Tính năng chính
         </div>
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 12,
         }}>
           {FEATURES.map((f) => (
             <div key={f.title} style={{
-              padding: "20px 20px 18px",
-              background: "#fafafa",
+              display: "flex",
+              gap: 14,
+              padding: "16px 20px",
+              background: "#ffffff",
               border: "1px solid #dfdfdf",
-              borderRadius: 12,
-              transition: "border-color 0.15s",
+              borderLeft: "3px solid #3ecf8e",
+              borderRadius: 8,
             }}>
-              <div style={{ marginBottom: 12 }}>{f.icon}</div>
-              <div style={{
-                fontSize: 14, fontWeight: 600,
-                color: "#171717", marginBottom: 6,
-                letterSpacing: "-0.01em",
-              }}>
-                {f.title}
-              </div>
-              <div style={{
-                fontSize: 13, color: "#707070",
-                lineHeight: 1.55,
-              }}>
-                {f.desc}
+              <div style={{ flexShrink: 0, marginTop: 1 }}>{f.icon}</div>
+              <div>
+                <div style={{
+                  fontSize: 13, fontWeight: 600,
+                  color: "#171717", marginBottom: 4,
+                  letterSpacing: "-0.01em",
+                }}>
+                  {f.title}
+                </div>
+                <div style={{
+                  fontSize: 12, color: "#707070",
+                  lineHeight: 1.6,
+                }}>
+                  {f.desc}
+                </div>
               </div>
             </div>
           ))}
@@ -256,7 +259,7 @@ export default function LandingPage() {
       {/* ── Checklist ─────────────────────────────────────────────────────── */}
       <section style={{
         padding: "48px 24px",
-        borderTop: "1px solid #f0f0f0",
+        borderTop: "1px solid #dfdfdf",
         background: "#fafafa",
       }}>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
@@ -322,7 +325,7 @@ export default function LandingPage() {
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer style={{
-        borderTop: "1px solid #f0f0f0",
+        borderTop: "1px solid #dfdfdf",
         padding: "20px 24px",
         textAlign: "center",
         fontSize: 12, color: "#b2b2b2",
