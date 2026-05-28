@@ -61,6 +61,12 @@ const designTokens = {
     Modal: {
       borderRadiusLG: 12,
     },
+    Tooltip: {
+      // colorTextLightSolid is "#171717" globally (dark text on emerald button),
+      // but Tooltip needs white text on its dark background — override here.
+      colorBgSpotlight: "rgba(23,23,23,0.92)",
+      colorTextLightSolid: "#ffffff",
+    },
   },
 };
 

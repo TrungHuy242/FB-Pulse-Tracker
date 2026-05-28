@@ -30,6 +30,15 @@ button:not(.ant-btn):focus-visible {
   border-radius: 2px;
 }
 
+// ─── Ant Design Tooltip — force white text ────────────────────────────────────
+// colorTextLightSolid="#171717" is set globally for emerald primary button,
+// but tooltip must always use white text on its dark background.
+.ant-tooltip-inner,
+[class*="ant-tooltip"] [role="tooltip"],
+.ant-tooltip-container {
+  color: #ffffff !important;
+}
+
 // ─── Danger solid buttons: white text (dark text on red fails contrast) ────────
 // colorTextLightSolid is set to #171717 globally for emerald button,
 // but danger (red) solid buttons must restore white text.
