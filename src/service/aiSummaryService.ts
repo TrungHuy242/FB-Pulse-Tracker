@@ -4,11 +4,11 @@
  * Architecture:
  *   Frontend → httpsCallable("summarizeComments") → Cloud Function
  *                                                         ↓
- *                                               Claude API (claude-haiku-4-5)
+ *                                               Gemini API (GEMINI_MODEL)
  *                                                         ↓
  *                                               SummaryResult trả về client
  *
- * ANTHROPIC_API_KEY chỉ tồn tại trên Cloud Function, KHÔNG BAO GIỜ expose ra client.
+ * GEMINI_API_KEY chỉ tồn tại trên Cloud Function, KHÔNG BAO GIỜ expose ra client.
  */
 
 import { getFunctions, httpsCallable } from "firebase/functions";

@@ -12,7 +12,7 @@
 
 <p align="center">
   Ứng dụng web nội bộ phân tích tương tác Facebook — bình luận, cảm xúc, xu hướng theo thời gian.<br/>
-  Dữ liệu từ file ZIP của Facebook · Lưu trữ Firebase Firestore · Phân tích AI bằng Claude Haiku.
+  Dữ liệu từ file ZIP của Facebook · Lưu trữ Firebase Firestore · Phân tích AI bằng Gemini.
 </p>
 
 ---
@@ -40,7 +40,7 @@
 - **Keyword Frequency**: Từ khóa xuất hiện nhiều nhất trong bình luận
 - **Auto Insights**: 7 insight tự động — peak hour, top commenter, spike detection, v.v.
 
-### AI (Claude Haiku · Cloud Functions)
+### AI (Gemini · Cloud Functions)
 - **AI Sentiment**: Phân loại cảm xúc từng bình luận (positive / neutral / negative) + score + keywords
 - **AI Summary**: Tóm tắt toàn bộ bình luận thành highlights, action items, keywords, sentiment overview
 - **Performance Score**: Điểm 0–100 + xếp hạng A–F cho từng import (engagement rate + volume)
@@ -69,7 +69,7 @@
 | Ant Design | 6 | UI components (Supabase-inspired tokens) |
 | Firebase | 12 | Auth (Google) + Firestore + Cloud Functions |
 | ECharts | 6 | Interactive charts (lazy loaded) |
-| Anthropic SDK | latest | Claude Haiku — server-side only |
+| Google Generative AI SDK | 0.21 | Gemini — server-side only (Cloud Functions) |
 | XLSX / SheetJS | 0.18 | Excel export |
 | JSZip | 3.10 | Đọc + giải nén ZIP (nested support) |
 | Day.js | 1.11 | Date handling |
@@ -88,7 +88,9 @@ fb-pulse-tracker/
 ├── functions/                        # Firebase Cloud Functions
 │   └── src/
 │       └── index.ts                  # analyzeSentiment + summarizeComments
-│                                       (Claude Haiku — ANTHROPIC_API_KEY server-side)
+│                                       + extractSeoKeywords + scoreLeads
+│                                       + classifyIntent + generateSeedingIdeas
+│                                       (Gemini — GEMINI_API_KEY server-side)
 │
 ├── src/
 │   ├── components/
@@ -108,7 +110,6 @@ fb-pulse-tracker/
 │   │   ├── exportAllImportsToCSV.ts  # Export CSV
 │   │   ├── exportAllImportsToExcel.ts # Export Excel (.xlsx)
 │   │   ├── exportAllImportsToJSON.ts # Export JSON
-│   │   ├── Header.tsx                # Header với logo + import button
 │   │   ├── ImportFolder.tsx          # Modal import ZIP (batch, re-import, progress)
 │   │   ├── InsightsPanel.tsx         # Auto insights (7 loại)
 │   │   ├── LoadingOverlay.tsx        # Global loading overlay
@@ -149,6 +150,7 @@ fb-pulse-tracker/
 │   │   ├── accountService.ts         # CRUD allowedAccounts
 │   │   ├── aiSentimentService.ts     # Gọi analyzeSentiment Cloud Function
 │   │   ├── aiSummaryService.ts       # Gọi summarizeComments Cloud Function
+│   │   ├── aiExtendedService.ts      # SEO keywords, lead scoring, intent, seeding ideas
 │   │   ├── authService.ts            # Kiểm tra whitelist khi login
 │   │   ├── firebase.ts               # Firebase SDK init (app, db, auth)
 │   │   ├── importService.ts          # CRUD imports + findByAccountName
@@ -259,23 +261,41 @@ npm run dev
 
 ### 4. Cloud Functions AI (tuỳ chọn)
 
-Tính năng AI Sentiment + AI Summary yêu cầu deploy Cloud Functions:
+AI Sentiment, AI Summary và các tính năng AI mở rộng yêu cầu deploy Cloud Functions với **Gemini API**:
 
 ```bash
 # Cài đặt Firebase CLI
 npm install -g firebase-tools
 firebase login
 
-# Set API key AN TOÀN — CHỈ trên server, không bao giờ vào frontend
-firebase functions:secrets:set ANTHROPIC_API_KEY
-# → Nhập key: sk-ant-api03-...
+# Set Gemini API key AN TOÀN — CHỈ trên server, không bao giờ vào frontend bundle
+firebase functions:secrets:set GEMINI_API_KEY
+# → Nhập key từ https://aistudio.google.com/app/apikey
 
-# Deploy
+# (Tuỳ chọn) Đổi model — mặc định là gemini-2.0-flash
+firebase functions:secrets:set GEMINI_MODEL
+# → Nhập: gemini-2.0-flash  |  gemini-1.5-flash  |  gemini-2.5-flash  | ...
+
+# Cài dependencies và deploy
 cd functions && npm install && cd ..
 firebase deploy --only functions
 ```
 
-> Nếu không deploy Cloud Functions, AI features sẽ tự động fallback sang rule-based sentiment.
+> **Biến môi trường Cloud Functions:**
+> | Biến | Bắt buộc | Mô tả |
+> |------|----------|-------|
+> | `GEMINI_API_KEY` | ✓ | Google AI Studio API key |
+> | `GEMINI_MODEL` | — | Tên model (mặc định: `gemini-2.0-flash`) |
+
+> Nếu không deploy Cloud Functions, AI Sentiment tự động fallback sang rule-based. Các tính năng khác trả về empty result.
+
+**Cloud Functions đã có:**
+- `analyzeSentiment` — Phân tích cảm xúc (tối đa 50 bình luận)
+- `summarizeComments` — Tóm tắt tổng quan (tối đa 300 bình luận)
+- `extractSeoKeywords` — Trích xuất từ khóa SEO (tối đa 500 bình luận)
+- `scoreLeads` — Chấm điểm leads tiềm năng (tối đa 200 bình luận)
+- `classifyIntent` — Phân loại ý định (tối đa 100 bình luận)
+- `generateSeedingIdeas` — Ý tưởng nội dung seeding (tối đa 500 bình luận)
 
 ### 5. Deploy Firestore Rules
 

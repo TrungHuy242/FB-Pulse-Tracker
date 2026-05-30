@@ -4,11 +4,11 @@
  * Architecture:
  *   Frontend → httpsCallable("analyzeSentiment") → Cloud Function (server-side)
  *                                                         ↓
- *                                               Claude API (claude-haiku-4-5)
+ *                                               Gemini API (GEMINI_MODEL)
  *                                                         ↓
  *                                               SentimentResult[] trả về client
  *
- * ANTHROPIC_API_KEY chỉ tồn tại trên Cloud Function, KHÔNG BAO GIỜ expose ra client.
+ * GEMINI_API_KEY chỉ tồn tại trên Cloud Function, KHÔNG BAO GIỜ expose ra client.
  *
  * Fallback: nếu Cloud Function chưa deploy hoặc lỗi → dùng rule-based sentiment.
  */
