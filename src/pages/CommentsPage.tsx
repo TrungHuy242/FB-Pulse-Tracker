@@ -225,7 +225,7 @@ function AiResultsPanel({ results, onClose }: AiResultsPanelProps) {
               color: usedAi ? "#1a7f5e" : "#b45309",
             }}
           >
-            {usedAi ? "Cloud Function AI" : "Rule-based fallback"}
+            {usedAi ? "Gemini AI" : "Rule-based fallback"}
           </Tag>
         </div>
         <Button
@@ -444,7 +444,7 @@ export default function CommentsPage() {
           const cfg = sentCfg[aiResult.sentiment];
           return (
             <Tooltip
-              title={`Nguồn: ${aiResult.source === "ai" ? "Cloud Function AI" : "Rule-based fallback"}`}
+              title={`Nguồn: ${aiResult.source === "ai" ? "Gemini AI" : "Rule-based fallback"}`}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Tag style={{

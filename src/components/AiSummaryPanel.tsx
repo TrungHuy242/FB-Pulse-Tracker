@@ -88,7 +88,7 @@ const AiSummaryPanel: React.FC<AiSummaryPanelProps> = ({
             fontSize: 10, fontWeight: 700, border: "none", borderRadius: 4,
             background: "rgba(62,207,142,0.12)", color: "#1a7f5e",
           }}>
-            Claude Haiku
+            Gemini
           </Tag>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
@@ -131,7 +131,7 @@ const AiSummaryPanel: React.FC<AiSummaryPanelProps> = ({
           display: "flex", alignItems: "center", gap: 8,
         }}>
           <ExclamationCircleOutlined />
-          Cloud Function chưa khả dụng — thử lại sau hoặc deploy functions trước.
+          Gemini Cloud Function chưa khả dụng — cần deploy functions với GEMINI_API_KEY trước.
         </div>
       )}
 

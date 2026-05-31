@@ -64,7 +64,7 @@ function fallbackAnalysis(comments: CommentForAI[]): AiSentimentResult[] {
 // ── Main function ─────────────────────────────────────────────────────────────
 
 /**
- * Phân tích cảm xúc bình luận bằng Claude API qua Cloud Function.
+ * Phân tích cảm xúc bình luận bằng Gemini API qua Cloud Function.
  *
  * Tự động chia thành batches nếu > BATCH_SIZE.
  * Fallback về rule-based nếu Cloud Function lỗi.

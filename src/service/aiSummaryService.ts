@@ -40,7 +40,7 @@ export const SUMMARY_LIMIT = 300;
 // ── Service function ──────────────────────────────────────────────────────────
 
 /**
- * Tóm tắt danh sách bình luận bằng Claude API qua Cloud Function.
+ * Tóm tắt danh sách bình luận bằng Gemini API qua Cloud Function.
  *
  * @param comments - Danh sách bình luận (tối đa SUMMARY_LIMIT items)
  * @param accountName - Tên tài khoản Facebook (dùng trong prompt cho context)
