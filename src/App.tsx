@@ -15,6 +15,7 @@ import ImportsPage from "./pages/ImportsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import CommentsPage from "./pages/CommentsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SeedingPage from "./pages/SeedingPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
@@ -145,6 +146,10 @@ function App() {
               <Route
                 path="/settings"
                 element={<RequireAuth><SettingsPage /></RequireAuth>}
+              />
+              <Route
+                path="/seeding"
+                element={<RequireAuth><SeedingPage /></RequireAuth>}
               />
               <Route
                 path="/admin"

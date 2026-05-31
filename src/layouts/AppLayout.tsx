@@ -23,6 +23,7 @@ import {
   MenuOutlined,
   CloseOutlined,
   UserOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -38,10 +39,11 @@ interface NavItemConfig {
 }
 
 const NAV_ITEMS: NavItemConfig[] = [
-  { key: "overview", label: "Tổng quan", icon: <DashboardOutlined />, path: "/" },
-  { key: "imports", label: "Imports", icon: <ImportOutlined />, path: "/imports" },
-  { key: "analytics", label: "Analytics", icon: <LineChartOutlined />, path: "/analytics" },
-  { key: "comments", label: "Bình luận", icon: <CommentOutlined />, path: "/comments" },
+  { key: "overview",  label: "Tổng quan",       icon: <DashboardOutlined />,    path: "/" },
+  { key: "imports",   label: "Imports",          icon: <ImportOutlined />,       path: "/imports" },
+  { key: "analytics", label: "Analytics",        icon: <LineChartOutlined />,    path: "/analytics" },
+  { key: "comments",  label: "Bình luận",        icon: <CommentOutlined />,      path: "/comments" },
+  { key: "seeding",   label: "Seeding Manager",  icon: <PlayCircleOutlined />,   path: "/seeding" },
 ];
 
 const BOTTOM_NAV_ITEMS: NavItemConfig[] = [

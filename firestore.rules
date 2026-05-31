@@ -118,6 +118,30 @@ service cloud.firestore {
       }
     }
 
+    // ── Seeding Manager ───────────────────────────────────────────────────────
+    // Bộ 4 collections cho module Seeding Manager (GPM Excel bridge).
+    // Read: isAllowedUser — Write: isAdmin (nhất quán với pattern hiện tại).
+
+    match /seedingProfiles/{id} {
+      allow read: if isAllowedUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /seedingCampaigns/{id} {
+      allow read: if isAllowedUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /seedingTasks/{id} {
+      allow read: if isAllowedUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /seedingComments/{id} {
+      allow read: if isAllowedUser();
+      allow create, update, delete: if isAdmin();
+    }
+
     // ── Mặc định: từ chối tất cả ─────────────────────────────────────────────
     // Bất kỳ collection hoặc sub-collection chưa được khai báo ở trên
     // đều bị từ chối hoàn toàn — bảo vệ khỏi dữ liệu ngẫu nhiên.
