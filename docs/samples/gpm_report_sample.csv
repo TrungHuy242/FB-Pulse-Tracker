@@ -1,0 +1,4 @@
+task_id,profile_id,action,target_url,status,error_message,finished_at
+task_abc001,profile_001,like,https://www.facebook.com/permalink/111111111,success,,2026-05-31T10:00:12Z
+task_abc002,profile_002,comment,https://www.facebook.com/permalink/111111111,failed,Session expired — need re-login,2026-05-31T10:01:08Z
+task_abc003,profile_003,share,https://www.facebook.com/permalink/111111111,skipped,Already shared this post,2026-05-31T10:02:03Z

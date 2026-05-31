@@ -1,0 +1,4 @@
+task_id,profile_id,profile_name,action,target_url,comment_text,share_caption,delay_min,delay_max
+task_abc001,profile_001,Nguyễn Văn A,like,https://www.facebook.com/permalink/111111111,,, 5,15
+task_abc002,profile_002,Trần Thị B,comment,https://www.facebook.com/permalink/111111111,"Hay lắm anh ơi! Chúc mừng bạn",,8,20
+task_abc003,profile_003,Lê Văn C,share,https://www.facebook.com/permalink/111111111,,Chia sẻ bài hay quá nè mọi người,10,25
