@@ -29,3 +29,8 @@ dist-ssr
 # Playwright
 playwright-report/
 test-results/
+.playwright-mcp/
+
+# Claude Code tool artifacts (không thuộc source code)
+.agents/
+skills-lock.json
