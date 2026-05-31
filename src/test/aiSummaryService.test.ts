@@ -1,38 +1,27 @@
 /**
- * Tests for aiSummaryService — client-side wrapper cho summarizeComments.
- *
- * Mock Firebase Functions, kiểm tra:
- * - Empty input → error, no Cloud Function call
- * - Cloud Function được gọi với đúng payload
- * - Trả về SummaryResult khi thành công
- * - error !== null khi Cloud Function throw
- * - Không throw — luôn trả về SummaryResponse object
+ * Tests for aiSummaryService — Gemini trực tiếp từ frontend.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ── Mock firebase/functions ────────────────────────────────────────────────────
+// ── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockCallable = vi.fn();
+const mockGenerateContent = vi.fn();
 
-vi.mock("firebase/functions", () => ({
-  getFunctions: vi.fn(() => ({})),
-  httpsCallable: vi.fn(() => mockCallable),
+vi.mock("@/utils/geminiClient", () => ({
+  createGeminiModel: vi.fn(),
 }));
+vi.mock("@/service/firebase", () => ({ app: {}, db: {} }));
 
-vi.mock("@/service/firebase", () => ({
-  app: {},
-  db: {},
-}));
-
-// ── Import service ─────────────────────────────────────────────────────────────
+// ── Imports ───────────────────────────────────────────────────────────────────
 
 import {
   summarizeCommentsWithAI,
   SUMMARY_LIMIT,
 } from "@/service/aiSummaryService";
 import type { CommentForAI } from "@/service/aiSentimentService";
+import { createGeminiModel } from "@/utils/geminiClient";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeComments(n: number): CommentForAI[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -41,43 +30,53 @@ function makeComments(n: number): CommentForAI[] {
   }));
 }
 
-const mockSummaryResult = {
+const mockSummaryJson = JSON.stringify({
   summary: "Đây là bản tóm tắt tổng quan.",
   highlights: ["Điểm nổi bật 1", "Điểm nổi bật 2"],
   actionItems: ["Hành động 1"],
   keywords: ["từ khóa", "chất lượng"],
   sentimentOverview: { positive: 70, neutral: 20, negative: 10 },
-};
+});
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
+function mockModelReady() {
+  vi.mocked(createGeminiModel).mockReturnValue({
+    generateContent: mockGenerateContent,
+  } as unknown as ReturnType<typeof createGeminiModel>);
+}
+
+function mockModelNull() {
+  vi.mocked(createGeminiModel).mockReturnValue(null);
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("summarizeCommentsWithAI", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockModelReady();
+  });
 
-  it("returns error for empty input without calling Cloud Function", async () => {
+  it("returns error for empty input without calling Gemini", async () => {
     const { result, error } = await summarizeCommentsWithAI([]);
     expect(result).toBeNull();
     expect(error).toBeTruthy();
-    expect(mockCallable).not.toHaveBeenCalled();
+    expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
-  it("calls Cloud Function with correct payload", async () => {
-    const comments = makeComments(5);
-    mockCallable.mockResolvedValueOnce({ data: mockSummaryResult });
+  it("returns error when model is null (no API key)", async () => {
+    mockModelNull();
+    const { result, error } = await summarizeCommentsWithAI(makeComments(5));
+    expect(result).toBeNull();
+    expect(error).toContain("VITE_GEMINI_API_KEY");
+    expect(mockGenerateContent).not.toHaveBeenCalled();
+  });
 
-    await summarizeCommentsWithAI(comments, "Page ABC");
-
-    expect(mockCallable).toHaveBeenCalledWith({
-      comments,
-      accountName: "Page ABC",
+  it("calls Gemini and returns result on success", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      response: { text: () => mockSummaryJson },
     });
-  });
 
-  it("returns result on success", async () => {
-    const comments = makeComments(10);
-    mockCallable.mockResolvedValueOnce({ data: mockSummaryResult });
-
-    const { result, error } = await summarizeCommentsWithAI(comments);
+    const { result, error } = await summarizeCommentsWithAI(makeComments(10));
     expect(error).toBeNull();
     expect(result).toMatchObject({
       summary: expect.any(String),
@@ -87,32 +86,30 @@ describe("summarizeCommentsWithAI", () => {
     });
   });
 
-  it("returns error (not throws) when Cloud Function fails", async () => {
-    const comments = makeComments(3);
-    mockCallable.mockRejectedValueOnce(new Error("Cloud Function unavailable"));
+  it("passes accountName in prompt when provided", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      response: { text: () => mockSummaryJson },
+    });
 
-    const { result, error } = await summarizeCommentsWithAI(comments);
+    await summarizeCommentsWithAI(makeComments(5), "Page ABC");
+    const prompt = mockGenerateContent.mock.calls[0][0] as string;
+    expect(prompt).toContain("Page ABC");
+  });
+
+  it("returns error (not throws) when Gemini fails", async () => {
+    mockGenerateContent.mockRejectedValueOnce(new Error("Gemini unavailable"));
+
+    const { result, error } = await summarizeCommentsWithAI(makeComments(3));
     expect(result).toBeNull();
-    expect(error).toContain("Cloud Function unavailable");
+    expect(error).toContain("Gemini unavailable");
   });
 
-  it("caps input to SUMMARY_LIMIT when comments exceed limit", async () => {
-    const comments = makeComments(SUMMARY_LIMIT + 50);
-    mockCallable.mockResolvedValueOnce({ data: mockSummaryResult });
+  it("caps input to SUMMARY_LIMIT", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      response: { text: () => mockSummaryJson },
+    });
 
-    await summarizeCommentsWithAI(comments);
-
-    const calledWith = mockCallable.mock.calls[0][0] as { comments: CommentForAI[] };
-    expect(calledWith.comments.length).toBe(SUMMARY_LIMIT);
-  });
-
-  it("passes accountName as undefined when not provided", async () => {
-    const comments = makeComments(2);
-    mockCallable.mockResolvedValueOnce({ data: mockSummaryResult });
-
-    await summarizeCommentsWithAI(comments);
-
-    const calledWith = mockCallable.mock.calls[0][0] as { accountName?: string };
-    expect(calledWith.accountName).toBeUndefined();
+    await summarizeCommentsWithAI(makeComments(SUMMARY_LIMIT + 50));
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
   });
 });

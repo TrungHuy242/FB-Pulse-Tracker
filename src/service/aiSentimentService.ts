@@ -1,20 +1,11 @@
 /**
- * AI Sentiment Service — Client-side wrapper cho Firebase Cloud Function analyzeSentiment.
+ * AI Sentiment Service — Gọi Gemini API trực tiếp từ frontend.
  *
- * Architecture:
- *   Frontend → httpsCallable("analyzeSentiment") → Cloud Function (server-side)
- *                                                         ↓
- *                                               Gemini API (GEMINI_MODEL)
- *                                                         ↓
- *                                               SentimentResult[] trả về client
- *
- * GEMINI_API_KEY chỉ tồn tại trên Cloud Function, KHÔNG BAO GIỜ expose ra client.
- *
- * Fallback: nếu Cloud Function chưa deploy hoặc lỗi → dùng rule-based sentiment.
+ * Đọc key từ VITE_GEMINI_API_KEY trong .env.
+ * Nếu key chưa set hoặc Gemini lỗi → fallback rule-based tự động.
+ * Không cần Cloud Functions, không cần Firebase Blaze.
  */
-
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { app } from "@/service/firebase";
+import { createGeminiModel } from "@/utils/geminiClient";
 import { classifySentiment } from "@/utils/sentiment";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -30,23 +21,51 @@ export interface AiSentimentResult {
   score: number;
   confidence: "high" | "medium" | "low";
   keywords: string[];
-  source: "ai" | "rule-based"; // cho biết kết quả từ đâu
+  source: "ai" | "rule-based";
 }
 
 export interface AiSentimentResponse {
   results: AiSentimentResult[];
-  usedAi: boolean;    // true = Cloud Function thành công
+  usedAi: boolean;
   totalProcessed: number;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Số bình luận tối đa mỗi lần gọi Cloud Function */
 const BATCH_SIZE = 50;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Fallback: phân tích rule-based khi Cloud Function không khả dụng */
+// ── Prompt + parse ────────────────────────────────────────────────────────────
+
+function buildPrompt(comments: CommentForAI[]): string {
+  const items = comments
+    .map((c, i) => `${i + 1}. [${c.id}] ${c.content}`)
+    .join("\n");
+  return `Analyze the sentiment of these Vietnamese/English Facebook comments.
+Return ONLY a JSON array with no markdown, no explanation.
+
+Each item: {"id":"<id>","sentiment":"positive"|"neutral"|"negative","score":<-1.0 to 1.0>,"confidence":"high"|"medium"|"low","keywords":[<1-3 key words>]}
+
+Comments:
+${items}`;
+}
+
+function parseResponse(
+  text: string,
+  inputs: CommentForAI[]
+): AiSentimentResult[] {
+  try {
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error("No JSON array");
+    const parsed = JSON.parse(match[0]) as Omit<AiSentimentResult, "source">[];
+    return parsed.map((r) => ({ ...r, source: "ai" as const }));
+  } catch {
+    return fallbackAnalysis(inputs);
+  }
+}
+
+// ── Fallback ──────────────────────────────────────────────────────────────────
+
 function fallbackAnalysis(comments: CommentForAI[]): AiSentimentResult[] {
   return comments.map((c) => {
     const { sentiment, score } = classifySentiment(c.content);
@@ -61,16 +80,11 @@ function fallbackAnalysis(comments: CommentForAI[]): AiSentimentResult[] {
   });
 }
 
-// ── Main function ─────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 /**
- * Phân tích cảm xúc bình luận bằng Gemini API qua Cloud Function.
- *
- * Tự động chia thành batches nếu > BATCH_SIZE.
- * Fallback về rule-based nếu Cloud Function lỗi.
- *
- * @param comments - Danh sách bình luận cần phân tích
- * @returns Kết quả phân tích và metadata (usedAi, totalProcessed)
+ * Phân tích cảm xúc bình luận bằng Gemini API.
+ * Tự chia batch nếu > 50. Fallback rule-based nếu key chưa set hoặc lỗi.
  */
 export async function analyzeCommentsWithAI(
   comments: CommentForAI[]
@@ -79,61 +93,31 @@ export async function analyzeCommentsWithAI(
     return { results: [], usedAi: false, totalProcessed: 0 };
   }
 
+  const model = createGeminiModel();
+  if (!model) {
+    const fallback = fallbackAnalysis(comments);
+    return { results: fallback, usedAi: false, totalProcessed: fallback.length };
+  }
+
   try {
-    const functions = getFunctions(app, "asia-southeast1");
-    const analyzeFn = httpsCallable<
-      { comments: CommentForAI[] },
-      { results: Omit<AiSentimentResult, "source">[] }
-    >(functions, "analyzeSentiment");
-
     const allResults: AiSentimentResult[] = [];
-
-    // Chia thành batches nếu cần
     for (let i = 0; i < comments.length; i += BATCH_SIZE) {
       const batch = comments.slice(i, i + BATCH_SIZE);
-      const response = await analyzeFn({ comments: batch });
-      const batchResults = response.data.results.map((r) => ({
-        ...r,
-        source: "ai" as const,
-      }));
-      allResults.push(...batchResults);
+      const result = await model.generateContent(buildPrompt(batch));
+      allResults.push(...parseResponse(result.response.text(), batch));
     }
-
-    return {
-      results: allResults,
-      usedAi: true,
-      totalProcessed: allResults.length,
-    };
+    return { results: allResults, usedAi: true, totalProcessed: allResults.length };
   } catch (err: unknown) {
-    // Cloud Function không khả dụng — log và fallback về rule-based
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[aiSentimentService] Cloud Function không khả dụng, dùng rule-based:", msg);
-
+    console.warn(
+      "[aiSentimentService] Gemini lỗi, dùng rule-based:",
+      err instanceof Error ? err.message : err
+    );
     const fallback = fallbackAnalysis(comments);
-    return {
-      results: fallback,
-      usedAi: false,
-      totalProcessed: fallback.length,
-    };
+    return { results: fallback, usedAi: false, totalProcessed: fallback.length };
   }
 }
 
-/**
- * Kiểm tra xem Cloud Function có khả dụng không (không tốn API credits).
- * Dùng để disable/enable nút "Phân tích AI" trong UI.
- */
-export async function checkAiAvailability(): Promise<boolean> {
-  try {
-    const functions = getFunctions(app, "asia-southeast1");
-    const analyzeFn = httpsCallable(functions, "analyzeSentiment");
-    // Gọi với empty array — Cloud Function sẽ trả về invalid-argument error
-    // nhưng điều đó cho biết function đang chạy
-    await analyzeFn({ comments: [] });
-    return true;
-  } catch (err: unknown) {
-    const code = (err as { code?: string }).code;
-    // "invalid-argument" = function đang chạy, chỉ là input sai
-    if (code === "functions/invalid-argument") return true;
-    return false;
-  }
+/** Trả về true nếu VITE_GEMINI_API_KEY đã được set trong .env */
+export function checkAiAvailability(): boolean {
+  return createGeminiModel() !== null;
 }

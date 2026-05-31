@@ -1,36 +1,30 @@
 /**
- * Tests for aiSentimentService — client-side AI sentiment wrapper.
+ * Tests for aiSentimentService — Gemini trực tiếp từ frontend.
  *
- * Mock Firebase Functions để kiểm tra:
- * - Gọi Cloud Function đúng input
- * - Parse kết quả đúng
- * - Fallback về rule-based khi Cloud Function lỗi
+ * Mock @/utils/geminiClient để kiểm tra:
+ * - createGeminiModel() trả null → fallback rule-based
+ * - Gemini thành công → AI results
+ * - Gemini lỗi → fallback rule-based
  * - Batch splitting khi > 50 comments
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ── Mock firebase/functions ────────────────────────────────────────────────────
+// ── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockCallable = vi.fn();
+const mockGenerateContent = vi.fn();
 
-vi.mock("firebase/functions", () => ({
-  getFunctions: vi.fn(() => ({})),
-  httpsCallable: vi.fn(() => mockCallable),
+vi.mock("@/utils/geminiClient", () => ({
+  createGeminiModel: vi.fn(),
 }));
+vi.mock("@/service/firebase", () => ({ app: {}, db: {} }));
 
-// ── Mock firebase service ──────────────────────────────────────────────────────
-
-vi.mock("@/service/firebase", () => ({
-  app: {},
-  db: {},
-}));
-
-// ── Import service ─────────────────────────────────────────────────────────────
+// ── Imports ───────────────────────────────────────────────────────────────────
 
 import { analyzeCommentsWithAI } from "@/service/aiSentimentService";
 import type { CommentForAI } from "@/service/aiSentimentService";
+import { createGeminiModel } from "@/utils/geminiClient";
 
-// ── Test helpers ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeComments(n: number): CommentForAI[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -39,11 +33,29 @@ function makeComments(n: number): CommentForAI[] {
   }));
 }
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
+function makeGeminiResponse(comments: CommentForAI[]) {
+  const arr = comments.map((c) => ({
+    id: c.id, sentiment: "positive", score: 0.8, confidence: "high", keywords: ["tốt"],
+  }));
+  return { response: { text: () => JSON.stringify(arr) } };
+}
+
+function mockModelReady() {
+  vi.mocked(createGeminiModel).mockReturnValue({
+    generateContent: mockGenerateContent,
+  } as unknown as ReturnType<typeof createGeminiModel>);
+}
+
+function mockModelNull() {
+  vi.mocked(createGeminiModel).mockReturnValue(null);
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("analyzeCommentsWithAI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockModelReady();
   });
 
   it("returns empty result for empty input", async () => {
@@ -51,51 +63,34 @@ describe("analyzeCommentsWithAI", () => {
     expect(result.results).toHaveLength(0);
     expect(result.usedAi).toBe(false);
     expect(result.totalProcessed).toBe(0);
+    expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
-  it("calls Cloud Function with correct payload", async () => {
+  it("falls back to rule-based when model is null (no API key)", async () => {
+    mockModelNull();
+    const comments: CommentForAI[] = [{ id: "1", content: "sản phẩm rất tốt" }];
+    const result = await analyzeCommentsWithAI(comments);
+    expect(result.usedAi).toBe(false);
+    expect(result.results[0].source).toBe("rule-based");
+    expect(mockGenerateContent).not.toHaveBeenCalled();
+  });
+
+  it("calls Gemini and marks results as ai source on success", async () => {
     const comments = makeComments(3);
-    mockCallable.mockResolvedValueOnce({
-      data: {
-        results: comments.map((c) => ({
-          id: c.id,
-          sentiment: "positive",
-          score: 0.8,
-          confidence: "high",
-          keywords: ["tốt"],
-        })),
-      },
-    });
-
-    await analyzeCommentsWithAI(comments);
-    expect(mockCallable).toHaveBeenCalledWith({ comments });
-  });
-
-  it("marks results as 'ai' source when Cloud Function succeeds", async () => {
-    const comments = makeComments(2);
-    mockCallable.mockResolvedValueOnce({
-      data: {
-        results: comments.map((c) => ({
-          id: c.id,
-          sentiment: "neutral",
-          score: 0,
-          confidence: "medium",
-          keywords: [],
-        })),
-      },
-    });
+    mockGenerateContent.mockResolvedValueOnce(makeGeminiResponse(comments));
 
     const result = await analyzeCommentsWithAI(comments);
     expect(result.usedAi).toBe(true);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     expect(result.results.every((r) => r.source === "ai")).toBe(true);
   });
 
-  it("falls back to rule-based when Cloud Function throws", async () => {
+  it("falls back to rule-based when Gemini throws", async () => {
     const comments: CommentForAI[] = [
       { id: "1", content: "sản phẩm rất tốt, hài lòng" },
       { id: "2", content: "kém quá, thất vọng" },
     ];
-    mockCallable.mockRejectedValueOnce(new Error("Cloud Function unavailable"));
+    mockGenerateContent.mockRejectedValueOnce(new Error("Gemini unavailable"));
 
     const result = await analyzeCommentsWithAI(comments);
     expect(result.usedAi).toBe(false);
@@ -105,39 +100,26 @@ describe("analyzeCommentsWithAI", () => {
 
   it("fallback preserves comment IDs", async () => {
     const comments = makeComments(3);
-    mockCallable.mockRejectedValueOnce(new Error("unavailable"));
-
+    mockGenerateContent.mockRejectedValueOnce(new Error("unavailable"));
     const result = await analyzeCommentsWithAI(comments);
-    const ids = result.results.map((r) => r.id);
-    expect(ids).toEqual(["c0", "c1", "c2"]);
+    expect(result.results.map((r) => r.id)).toEqual(["c0", "c1", "c2"]);
   });
 
-  it("fallback returns valid sentiment for positive content", async () => {
+  it("fallback returns positive sentiment for positive content", async () => {
+    mockModelNull();
     const comments: CommentForAI[] = [{ id: "x", content: "sản phẩm tuyệt vời" }];
-    mockCallable.mockRejectedValueOnce(new Error("unavailable"));
-
     const result = await analyzeCommentsWithAI(comments);
     expect(result.results[0].sentiment).toBe("positive");
   });
 
-  it("calls Cloud Function multiple times for > 50 comments (batching)", async () => {
+  it("calls Gemini multiple times for > 50 comments (batching)", async () => {
     const comments = makeComments(75);
-    // Two batches: 50 + 25
-    const makeBatchResult = (batch: CommentForAI[]) =>
-      batch.map((c) => ({
-        id: c.id,
-        sentiment: "neutral" as const,
-        score: 0,
-        confidence: "medium" as const,
-        keywords: [],
-      }));
-
-    mockCallable
-      .mockResolvedValueOnce({ data: { results: makeBatchResult(comments.slice(0, 50)) } })
-      .mockResolvedValueOnce({ data: { results: makeBatchResult(comments.slice(50)) } });
+    mockGenerateContent
+      .mockResolvedValueOnce(makeGeminiResponse(comments.slice(0, 50)))
+      .mockResolvedValueOnce(makeGeminiResponse(comments.slice(50)));
 
     const result = await analyzeCommentsWithAI(comments);
-    expect(mockCallable).toHaveBeenCalledTimes(2);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
     expect(result.totalProcessed).toBe(75);
   });
 });
