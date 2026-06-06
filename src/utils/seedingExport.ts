@@ -7,7 +7,6 @@
  *
  * Pure functions — testable độc lập với Firestore.
  */
-import * as XLSX from "xlsx";
 import type {
   SeedingTask,
   TaskExportRow,
@@ -41,12 +40,13 @@ export function buildTaskExportRows(tasks: SeedingTask[]): TaskExportRow[] {
  * Xuất tasks ra file Excel (.xlsx) và trigger download.
  * @returns danh sách task_id đã export (để gọi markTasksExported)
  */
-export function exportTasksToExcel(
+export async function exportTasksToExcel(
   tasks: SeedingTask[],
   campaignName: string
-): string[] {
+): Promise<string[]> {
   if (tasks.length === 0) return [];
 
+  const XLSX = await import("xlsx");
   const rows = buildTaskExportRows(tasks);
   const ws = XLSX.utils.json_to_sheet(rows);
 
@@ -153,6 +153,7 @@ export function parseFinishedAt(raw: string): Timestamp | undefined {
  * Async — dùng FileReader.
  */
 export async function readReportFile(file: File): Promise<TaskReportRow[]> {
+  const XLSX = await import("xlsx");
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -196,6 +197,7 @@ export function parseProfileRows(rawRows: Record<string, unknown>[]): ProfileImp
  * Đọc file Excel/CSV cho profiles.
  */
 export async function readProfileFile(file: File): Promise<ProfileImportRow[]> {
+  const XLSX = await import("xlsx");
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -221,11 +223,12 @@ export async function readProfileFile(file: File): Promise<ProfileImportRow[]> {
 /**
  * Xuất template Excel cho profiles (user điền vào).
  */
-export function exportProfileTemplate(): void {
+export async function exportProfileTemplate(): Promise<void> {
   const sample: ProfileImportRow[] = [
     { profile_id: "profile_001", profile_name: "Nguyễn Văn A", status: "active", note: "Tài khoản chính" },
     { profile_id: "profile_002", profile_name: "Trần Thị B",   status: "active", note: "" },
   ];
+  const XLSX = await import("xlsx");
   const ws = XLSX.utils.json_to_sheet(sample);
   ws["!cols"] = [{ wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 30 }];
   const wb = XLSX.utils.book_new();

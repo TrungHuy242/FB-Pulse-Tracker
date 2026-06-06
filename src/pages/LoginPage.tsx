@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button, Form, Input, Tabs, Card, Divider } from "antd";
+import { Button, Form, Input, Tabs, Card, Divider, Alert } from "antd";
 import {
   BarChartOutlined,
   UserOutlined,
@@ -12,7 +12,7 @@ import { useLoading } from "@/contexts/LoadingContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
 export default function LoginPage() {
-  const { loginWithEmail, registerWithEmail, loading, user } = useAuth();
+  const { loginWithEmail, registerWithEmail, loading, user, authError } = useAuth();
   const navigate = useNavigate();
   const { showLoading, closeLoading } = useLoading();
   const [activeTab, setActiveTab] = useState<string>("login");
@@ -177,6 +177,16 @@ export default function LoginPage() {
         </Button>
 
         <Divider style={{ margin: "16px 0", fontSize: 11, color: muteColor }}>HOẶC</Divider>
+
+        {authError && (
+          <Alert
+            type="error"
+            message="Lỗi xác thực tài khoản"
+            description={authError}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
         {/* Input Form */}
         <Form

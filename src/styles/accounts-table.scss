@@ -101,7 +101,7 @@
     // Disabled (zero count)
     &--disabled {
       background: #f4f4f4;
-      color: #b2b2b2; // ink-faint
+      color: #767676; // ink-faint (increased contrast for accessibility)
       cursor: default;
     }
 

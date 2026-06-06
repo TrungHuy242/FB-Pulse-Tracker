@@ -148,7 +148,7 @@ export const StatsCards = ({
                     style={{
                       fontSize: 10,
                       fontWeight: 500,
-                      color: isDark ? "#555" : "#bbb",
+                      color: isDark ? "#a3a3a3" : "#525252",
                       background: isDark ? "#1c1c1c" : "#f5f5f5",
                       padding: "2px 6px",
                       borderRadius: 4,

@@ -18,40 +18,53 @@ export const SentimentEfficiency: React.FC = () => {
   const { isDark } = useTheme();
 
   // Tải toàn bộ comments thực tế để phân tích
-  const { comments, loading } = useAllComments({});
+  const { comments, loading: commentsLoading } = useAllComments({});
 
-  // Tính toán sentiment thực tế từ dữ liệu comments
-  const sentimentData: SentimentItem[] = React.useMemo(() => {
+  const [sentimentData, setSentimentData] = React.useState<SentimentItem[]>([
+    { key: "positive", sentiment: "Positive (Tích cực)", percentage: 0, status: "Live", color: "#10b981" },
+    { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: 0, status: "Archived", color: "#9ca3af" },
+    { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: 0, status: "Live", color: "#ef4444" },
+  ]);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  React.useEffect(() => {
     if (!imports || imports.length === 0 || comments.length === 0) {
-      // Trả về phần trăm 0 khi hệ thống chưa có dữ liệu để tránh dữ liệu ảo
-      return [
+      setSentimentData([
         { key: "positive", sentiment: "Positive (Tích cực)", percentage: 0, status: "Live", color: "#10b981" },
         { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: 0, status: "Archived", color: "#9ca3af" },
         { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: 0, status: "Live", color: "#ef4444" },
-      ];
+      ]);
+      return;
     }
 
-    let posCount = 0;
-    let neuCount = 0;
-    let negCount = 0;
+    setIsProcessing(true);
+    // Defer the heavy sentiment calculation to a non-blocking macro-task
+    const timer = setTimeout(() => {
+      let posCount = 0;
+      let neuCount = 0;
+      let negCount = 0;
 
-    comments.forEach((c) => {
-      const { sentiment } = classifySentiment(c.content ?? "");
-      if (sentiment === "positive") posCount++;
-      else if (sentiment === "negative") negCount++;
-      else neuCount++;
-    });
+      comments.forEach((c) => {
+        const { sentiment } = classifySentiment(c.content ?? "");
+        if (sentiment === "positive") posCount++;
+        else if (sentiment === "negative") negCount++;
+        else neuCount++;
+      });
 
-    const total = comments.length;
-    const avgPos = parseFloat(((posCount / total) * 100).toFixed(1));
-    const avgNeu = parseFloat(((neuCount / total) * 100).toFixed(1));
-    const avgNeg = parseFloat(((negCount / total) * 100).toFixed(1));
+      const total = comments.length;
+      const avgPos = parseFloat(((posCount / total) * 100).toFixed(1));
+      const avgNeu = parseFloat(((neuCount / total) * 100).toFixed(1));
+      const avgNeg = parseFloat(((negCount / total) * 100).toFixed(1));
 
-    return [
-      { key: "positive", sentiment: "Positive (Tích cực)", percentage: avgPos, status: "Live", color: "#10b981" },
-      { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: avgNeu, status: "Archived", color: "#9ca3af" },
-      { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: avgNeg, status: "Live", color: "#ef4444" },
-    ];
+      setSentimentData([
+        { key: "positive", sentiment: "Positive (Tích cực)", percentage: avgPos, status: "Live", color: "#10b981" },
+        { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: avgNeu, status: "Archived", color: "#9ca3af" },
+        { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: avgNeg, status: "Live", color: "#ef4444" },
+      ]);
+      setIsProcessing(false);
+    }, 50);
+
+    return () => clearTimeout(timer);
   }, [imports, comments]);
 
   const columns = [
@@ -91,7 +104,9 @@ export const SentimentEfficiency: React.FC = () => {
               gap: 6,
               fontSize: 12,
               fontWeight: 500,
-              color: isLive ? "#10b981" : (isDark ? "#555" : "#9ca3af"),
+              color: isLive 
+                ? (isDark ? "#10b981" : "#047857") 
+                : (isDark ? "#8a8a8a" : "#555555"),
             }}
           >
             <span
@@ -99,7 +114,9 @@ export const SentimentEfficiency: React.FC = () => {
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                background: isLive ? "#10b981" : (isDark ? "#444" : "#9ca3af"),
+                background: isLive 
+                  ? (isDark ? "#10b981" : "#047857") 
+                  : (isDark ? "#555555" : "#737373"),
               }}
             />
             {status}
@@ -117,6 +134,7 @@ export const SentimentEfficiency: React.FC = () => {
           trailColor={isDark ? "#1f1f1f" : "#f3f4f6"}
           showInfo={false}
           size="small"
+          aria-label={`Tiến độ cảm xúc ${record.sentiment}`}
         />
       ),
     },
@@ -151,7 +169,7 @@ export const SentimentEfficiency: React.FC = () => {
         >
           Sentiment & Efficiency (Phân tích cảm xúc thực tế)
         </div>
-        {loading && <Spin size="small" />}
+        {(commentsLoading || isProcessing) && <Spin size="small" />}
       </div>
 
       <Table

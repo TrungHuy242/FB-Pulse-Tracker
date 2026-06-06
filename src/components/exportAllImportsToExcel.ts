@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import * as XLSX from "xlsx";
 import {
   collection,
   getDocs,
@@ -36,6 +34,7 @@ export const exportAllImportsToExcel = async (
   selectedIds?: string[],
   filter?: AccountsTableFilter
 ) => {
+  const XLSX = await import("xlsx");
   try {
     const importsList: Array<{ id: string; data: ImportDoc }> = [];
 

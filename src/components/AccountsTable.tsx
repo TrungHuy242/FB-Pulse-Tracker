@@ -281,10 +281,14 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
                 fontWeight: 700,
                 letterSpacing: "0.02em",
                 background: isCompleted 
-                  ? (isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)") 
-                  : (isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)"),
-                color: isCompleted ? "#10b981" : "#3b82f6",
-                border: `1px solid ${isCompleted ? "rgba(16, 185, 129, 0.2)" : "rgba(59, 130, 246, 0.2)"}`,
+                  ? (isDark ? "rgba(16, 185, 129, 0.15)" : "#d1fae5") 
+                  : (isDark ? "rgba(59, 130, 246, 0.15)" : "#dbeafe"),
+                color: isCompleted 
+                  ? (isDark ? "#10b981" : "#047857") 
+                  : (isDark ? "#3b82f6" : "#1d4ed8"),
+                border: `1px solid ${isCompleted 
+                  ? (isDark ? "rgba(16, 185, 129, 0.2)" : "rgba(4, 120, 87, 0.2)") 
+                  : (isDark ? "rgba(59, 130, 246, 0.2)" : "rgba(29, 78, 216, 0.2)")}`,
               }}
             >
               <span
@@ -292,7 +296,9 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
                   width: 5,
                   height: 5,
                   borderRadius: "50%",
-                  background: isCompleted ? "#10b981" : "#3b82f6",
+                  background: isCompleted 
+                    ? (isDark ? "#10b981" : "#047857") 
+                    : (isDark ? "#3b82f6" : "#1d4ed8"),
                 }}
               />
               {isCompleted ? "COMPLETED" : "PROCESSING"}
@@ -306,7 +312,7 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
         key: "importedAt",
         align: "center" as const,
         render: (value: Timestamp | null) => {
-          if (!value) return <span style={{ color: "#aaa" }}>—</span>;
+          if (!value) return <span style={{ color: isDark ? "#aaa" : "#555" }}>—</span>;
           return (
             <span style={{ color: isDark ? "#9ca3af" : "#666666", fontSize: 13 }}>
               {value.toDate().toLocaleString("vi-VN")}
@@ -413,6 +419,15 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as string[]),
+            getCheckboxProps: (record) => ({
+              "aria-label": `Chọn dòng của ${record.accountName || "người dùng"}`,
+              title: `Chọn dòng của ${record.accountName || "người dùng"}`,
+            }),
+          }}
+          locale={{
+            selectionAll: "Chọn tất cả các dòng",
+            selectInvert: "Đảo ngược lựa chọn",
+            selectNone: "Bỏ chọn tất cả",
           }}
           pagination={false}
           scroll={{

@@ -24,6 +24,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  limit,
 } from "firebase/firestore";
 import { db } from "@/service/firebase";
 import type { ImportRecord } from "@/types";
@@ -45,6 +46,8 @@ export interface ImportDataValue {
    * Giữ lại để không phá API hiện có.
    */
   reload: () => Promise<void>;
+  hasMore?: boolean;
+  loadMore?: () => void;
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -56,6 +59,8 @@ const ImportDataContext = createContext<ImportDataValue>({
   totalReactions: 0,
   fetchedAt: null,
   reload: async () => {},
+  hasMore: false,
+  loadMore: () => {},
 });
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -66,11 +71,17 @@ export const ImportDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [loading, setLoading] = useState(true); // true until first snapshot
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [hasMore, setHasMore] = useState(true);
 
   // ── onSnapshot listener ──────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
+    const q = query(
+      collection(db, "imports"),
+      orderBy("importedAt", "desc"),
+      limit(pageSize)
+    );
 
     const unsubscribe = onSnapshot(
       q,
@@ -82,6 +93,7 @@ export const ImportDataProvider: React.FC<{ children: React.ReactNode }> = ({
         setImports(data);
         setFetchedAt(Date.now());
         setLoading(false);
+        setHasMore(data.length === pageSize);
       },
       (err) => {
         console.error("[ImportDataContext] onSnapshot error:", err);
@@ -91,12 +103,18 @@ export const ImportDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
     // Cleanup: unsubscribe when Provider unmounts
     return () => unsubscribe();
-  }, []); // run once on mount — onSnapshot stays active
+  }, [pageSize]); // run when pageSize changes — onSnapshot stays active
 
   /** Compatibility shim — data is always fresh via onSnapshot. */
   const reload = useCallback(async () => {
     // No-op: the onSnapshot listener keeps data current automatically.
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      setPageSize((prev) => prev + 20);
+    }
+  }, [loading, hasMore]);
 
   // Tính totals từ metadata (không cần scan sub-collections)
   const totalComments = useMemo(
@@ -109,8 +127,8 @@ export const ImportDataProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const value = useMemo<ImportDataValue>(
-    () => ({ imports, loading, totalComments, totalReactions, fetchedAt, reload }),
-    [imports, loading, totalComments, totalReactions, fetchedAt, reload],
+    () => ({ imports, loading, totalComments, totalReactions, fetchedAt, reload, hasMore, loadMore }),
+    [imports, loading, totalComments, totalReactions, fetchedAt, reload, hasMore, loadMore],
   );
 
   return (

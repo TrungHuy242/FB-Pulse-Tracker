@@ -842,6 +842,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
             size="small"
             style={{ marginTop: 8 }}
             strokeColor="#3ecf8e"
+            aria-label="Tiến độ phân tích ZIP"
           />
         )}
 
@@ -922,6 +923,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
                   }
                   size="small"
                   strokeColor="#3ecf8e"
+                  aria-label="Tiến độ tải lên chunk"
                 />
               </div>
             )}

@@ -3,13 +3,14 @@
  * Hiển thị: StatsCards + EngagementChart + AccountsTable (tóm tắt).
  */
 import { StatsCards } from "@/components/StatsCards";
-import EngagementChart from "@/components/EngagementChart";
 import { AccountsTable } from "@/components/AccountsTable";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { TopProfiles } from "@/components/TopProfiles";
 import { SentimentEfficiency } from "@/components/SentimentEfficiency";
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, lazy, Suspense } from "react";
 import { Button, DatePicker, Select, Tooltip, Space } from "antd";
+
+const EngagementChart = lazy(() => import("@/components/EngagementChart"));
 import { FileTextOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useStats } from "@/hooks/useStats";
@@ -29,6 +30,15 @@ export default function HomePage() {
   const accountsTableRef = useRef<AccountsTableRef>(null);
   const importRef = useRef<FormDrawerHandle | null>(null);
   const selectContainerRef = useRef<HTMLDivElement>(null);
+
+  const [isTableMounted, setIsTableMounted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsTableMounted(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   /** Dùng để phát hiện trạng thái chưa có dữ liệu (first-time onboarding) */
   const { imports: allImports, loading: importsLoading } = useImportData();
@@ -215,10 +225,16 @@ export default function HomePage() {
             <div style={{ gridColumn: "span 2" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 20 }}>
                 <div>
-                  <EngagementChart
-                    filter={effectiveFilter}
-                    refreshSignal={refreshSignal}
-                  />
+                  <Suspense fallback={
+                    <div style={{ height: 380, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--sidebar-bg)", borderRadius: 12 }}>
+                      <span style={{ fontSize: 13, color: "#6b6b6b" }}>Đang tải biểu đồ...</span>
+                    </div>
+                  }>
+                    <EngagementChart
+                      filter={effectiveFilter}
+                      refreshSignal={refreshSignal}
+                    />
+                  </Suspense>
                 </div>
                 <div>
                   <TopProfiles />
@@ -237,13 +253,19 @@ export default function HomePage() {
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "var(--page-title)" }}>
               Quản lý Imports
             </div>
-            <AccountsTable
-              ref={accountsTableRef}
-              filter={effectiveFilter}
-              reloadStats={reloadStats}
-              refreshSignal={refreshSignal}
-              onDataChange={() => setRefreshSignal((s) => s + 1)}
-            />
+            {isTableMounted ? (
+              <AccountsTable
+                ref={accountsTableRef}
+                filter={effectiveFilter}
+                reloadStats={reloadStats}
+                refreshSignal={refreshSignal}
+                onDataChange={() => setRefreshSignal((s) => s + 1)}
+              />
+            ) : (
+              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--sidebar-bg)", borderRadius: 12 }}>
+                <span style={{ fontSize: 13, color: "var(--nav-label)" }}>Đang tải danh sách imports...</span>
+              </div>
+            )}
           </div>
         </>
       )}

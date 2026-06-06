@@ -156,9 +156,9 @@ export const TopProfiles: React.FC = () => {
                       fontWeight: 700,
                       padding: "3px 8px",
                       borderRadius: 4,
-                      background: isDark ? "#1c1c1c" : "#f5f5f5",
-                      color: "#10b981",
-                      border: `1px solid ${isDark ? "#2a2a2a" : "#e5e7eb"}`,
+                      background: isDark ? "rgba(16, 185, 129, 0.1)" : "#e6f7ed",
+                      color: isDark ? "#10b981" : "#047857",
+                      border: `1px solid ${isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(4, 120, 87, 0.15)"}`,
                     }}
                   >
                     {p.grade}
@@ -181,7 +181,7 @@ export const TopProfiles: React.FC = () => {
           padding: 0,
           marginTop: 24,
           alignSelf: "flex-start",
-          color: hasData ? "#10b981" : (isDark ? "#333" : "#bfbfbf"),
+          color: hasData ? (isDark ? "#10b981" : "#047857") : (isDark ? "#404040" : "#a3a3a3"),
           fontWeight: 600,
           fontSize: 13,
         }}

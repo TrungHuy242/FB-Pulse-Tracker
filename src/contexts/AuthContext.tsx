@@ -22,6 +22,7 @@ type AuthUser = {
 type AuthContextValue = {
   user: AuthUser;
   loading: boolean;
+  authError: string | null;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -40,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<AuthUser>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     let minLoadingTimer: ReturnType<typeof setTimeout>;
@@ -47,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const unsub = onAuthStateChanged(auth, async (u: User | null) => {
       if (!u) {
         setUser(null);
+        setAuthError(null);
         minLoadingTimer = setTimeout(() => setLoading(false), 100);
         return;
       }
@@ -55,11 +58,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!email) {
         await signOut(auth);
         setUser(null);
+        setAuthError("Tài khoản Firebase không có email.");
         minLoadingTimer = setTimeout(() => setLoading(false), 100);
         return;
       }
 
       try {
+        setAuthError(null);
         // Gọi checkAllowedAccount truyền UID và Email, hệ thống sẽ tự tạo bản ghi nếu chưa có
         const account = await checkAllowedAccount(u.uid, email, u.displayName);
         setUser({
@@ -69,8 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           role: account.role,
           allowedAccountId: account.id,
         });
-      } catch (err) {
+      } catch (err: any) {
         console.error("Auth check failed:", err);
+        setAuthError(`Kiểm tra tài khoản thất bại: ${err?.message || String(err)}`);
         setUser(null);
       } finally {
         minLoadingTimer = setTimeout(() => setLoading(false), 100);
@@ -87,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const loginWithEmail = async (email: string, pass: string) => {
     try {
       setLoading(true);
+      setAuthError(null);
       await signInWithEmailAndPassword(auth, email, pass);
       message.success("Đăng nhập thành công");
     } catch (err: unknown) {
@@ -106,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const registerWithEmail = async (email: string, pass: string) => {
     try {
       setLoading(true);
+      setAuthError(null);
       const result = await createUserWithEmailAndPassword(auth, email, pass);
       const u = result.user;
       
@@ -149,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithEmail, registerWithEmail, logout }}>
+    <AuthContext.Provider value={{ user, loading, authError, loginWithEmail, registerWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );

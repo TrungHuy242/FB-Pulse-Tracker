@@ -17,6 +17,12 @@
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/service/firebase";
 import type { CommentForAI } from "@/service/aiSentimentService";
+import {
+  extractSeoKeywordsClient,
+  scoreLeadsClient,
+  classifyIntentClient,
+  generateSeedingIdeasClient,
+} from "@/utils/aiClientFallback";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -94,7 +100,7 @@ function getFunctionsInstance() {
 // ── extractSeoKeywords ────────────────────────────────────────────────────────
 
 /**
- * Trích xuất từ khóa SEO từ bình luận bằng Gemini AI qua Cloud Function.
+ * Trích xuất từ khóa SEO từ bình luận bằng Gemini AI qua Cloud Function hoặc Client-side Fallback.
  *
  * @param comments - Danh sách bình luận (tối đa SEO_KEYWORDS_LIMIT)
  * @param accountName - Tên tài khoản để làm context cho AI
@@ -120,7 +126,21 @@ export async function extractSeoKeywordsWithAI(
     return { keywords: response.data.keywords ?? [], error: null };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[aiExtendedService] extractSeoKeywords lỗi:", msg);
+    console.warn("[aiExtendedService] extractSeoKeywords lỗi, thử dùng Client-side Fallback:", msg);
+    
+    // Check if client-side API key is available
+    const hasLocalKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+    if (hasLocalKey) {
+      try {
+        const keywords = await extractSeoKeywordsClient(comments, accountName);
+        return { keywords, error: null };
+      } catch (fallbackErr: any) {
+        return {
+          keywords: [],
+          error: `Cloud Function lỗi: ${msg}. Client-side Fallback cũng thất bại: ${fallbackErr.message || fallbackErr}`,
+        };
+      }
+    }
     return { keywords: [], error: msg };
   }
 }
@@ -128,7 +148,7 @@ export async function extractSeoKeywordsWithAI(
 // ── scoreLeads ────────────────────────────────────────────────────────────────
 
 /**
- * Chấm điểm leads tiềm năng từ bình luận bằng Gemini AI qua Cloud Function.
+ * Chấm điểm leads tiềm năng từ bình luận bằng Gemini AI qua Cloud Function hoặc Client-side Fallback.
  *
  * @param comments - Danh sách bình luận (có thể kèm authorName)
  * @returns LeadScoringResponse với leads hoặc error
@@ -152,7 +172,20 @@ export async function scoreLeadsWithAI(
     return { leads: response.data.leads ?? [], error: null };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[aiExtendedService] scoreLeads lỗi:", msg);
+    console.warn("[aiExtendedService] scoreLeads lỗi, thử dùng Client-side Fallback:", msg);
+
+    const hasLocalKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+    if (hasLocalKey) {
+      try {
+        const leads = await scoreLeadsClient(comments);
+        return { leads, error: null };
+      } catch (fallbackErr: any) {
+        return {
+          leads: [],
+          error: `Cloud Function lỗi: ${msg}. Client-side Fallback cũng thất bại: ${fallbackErr.message || fallbackErr}`,
+        };
+      }
+    }
     return { leads: [], error: msg };
   }
 }
@@ -160,7 +193,7 @@ export async function scoreLeadsWithAI(
 // ── classifyIntent ────────────────────────────────────────────────────────────
 
 /**
- * Phân loại ý định người dùng từ bình luận bằng Gemini AI qua Cloud Function.
+ * Phân loại ý định người dùng từ bình luận bằng Gemini AI qua Cloud Function hoặc Client-side Fallback.
  *
  * @param comments - Danh sách bình luận (tối đa INTENT_CLASSIFICATION_LIMIT)
  * @returns IntentClassificationResponse với results hoặc error
@@ -184,7 +217,20 @@ export async function classifyIntentWithAI(
     return { results: response.data.results ?? [], error: null };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[aiExtendedService] classifyIntent lỗi:", msg);
+    console.warn("[aiExtendedService] classifyIntent lỗi, thử dùng Client-side Fallback:", msg);
+
+    const hasLocalKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+    if (hasLocalKey) {
+      try {
+        const results = await classifyIntentClient(comments);
+        return { results, error: null };
+      } catch (fallbackErr: any) {
+        return {
+          results: [],
+          error: `Cloud Function lỗi: ${msg}. Client-side Fallback cũng thất bại: ${fallbackErr.message || fallbackErr}`,
+        };
+      }
+    }
     return { results: [], error: msg };
   }
 }
@@ -192,7 +238,7 @@ export async function classifyIntentWithAI(
 // ── generateSeedingIdeas ──────────────────────────────────────────────────────
 
 /**
- * Tạo ý tưởng nội dung seeding từ chủ đề bình luận bằng Gemini AI qua Cloud Function.
+ * Tạo ý tưởng nội dung seeding từ chủ đề bình luận bằng Gemini AI qua Cloud Function hoặc Client-side Fallback.
  *
  * @param comments - Danh sách bình luận để lấy context
  * @param accountName - Tên tài khoản để làm context
@@ -218,7 +264,20 @@ export async function generateSeedingIdeasWithAI(
     return { ideas: response.data.ideas ?? [], error: null };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[aiExtendedService] generateSeedingIdeas lỗi:", msg);
+    console.warn("[aiExtendedService] generateSeedingIdeas lỗi, thử dùng Client-side Fallback:", msg);
+
+    const hasLocalKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+    if (hasLocalKey) {
+      try {
+        const ideas = await generateSeedingIdeasClient(comments, accountName);
+        return { ideas, error: null };
+      } catch (fallbackErr: any) {
+        return {
+          ideas: [],
+          error: `Cloud Function lỗi: ${msg}. Client-side Fallback cũng thất bại: ${fallbackErr.message || fallbackErr}`,
+        };
+      }
+    }
     return { ideas: [], error: msg };
   }
 }

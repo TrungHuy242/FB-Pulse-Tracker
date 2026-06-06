@@ -179,7 +179,7 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
     try {
       const t = await getTasksByCampaign(campaign.id);
       if (t.length === 0) { message.warning("Không có tasks để export"); return; }
-      const ids = exportTasksToExcel(t, campaign.name);
+      const ids = await exportTasksToExcel(t, campaign.name);
       if (ids.length > 0) await markTasksExported(ids);
       message.success(`Đã export ${ids.length} tasks`);
     } catch { message.error("Export thất bại"); }
@@ -489,6 +489,7 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
             size="small"
             strokeColor={taskStats.successRate >= 70 ? "#3ecf8e" : taskStats.successRate >= 40 ? "#f59e0b" : "#dc2626"}
             style={{ marginBottom: 12 }}
+            aria-label="Tỷ lệ thành công của chiến dịch"
           />
         )}
         {tasksLoading ? (
