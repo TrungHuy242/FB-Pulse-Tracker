@@ -1,115 +1,51 @@
-/**
- * Tests for aiSummaryService — Gemini trực tiếp từ frontend.
- */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// ── Mocks ────────────────────────────────────────────────────────────────────
-
-const mockGenerateContent = vi.fn();
-
-vi.mock("@/utils/geminiClient", () => ({
-  createGeminiModel: vi.fn(),
-}));
-vi.mock("@/service/firebase", () => ({ app: {}, db: {} }));
-
-// ── Imports ───────────────────────────────────────────────────────────────────
-
-import {
-  summarizeCommentsWithAI,
-  SUMMARY_LIMIT,
-} from "@/service/aiSummaryService";
+import { describe, it, expect } from "vitest";
+import { summarizeCommentsWithAI } from "@/service/aiSummaryService";
 import type { CommentForAI } from "@/service/aiSentimentService";
-import { createGeminiModel } from "@/utils/geminiClient";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeComments(n: number): CommentForAI[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `c${i}`,
-    content: `Bình luận ${i + 1}`,
+    content: `Bình luận rất tốt sản phẩm chất lượng số ${i + 1}`,
   }));
 }
 
-const mockSummaryJson = JSON.stringify({
-  summary: "Đây là bản tóm tắt tổng quan.",
-  highlights: ["Điểm nổi bật 1", "Điểm nổi bật 2"],
-  actionItems: ["Hành động 1"],
-  keywords: ["từ khóa", "chất lượng"],
-  sentimentOverview: { positive: 70, neutral: 20, negative: 10 },
-});
-
-function mockModelReady() {
-  vi.mocked(createGeminiModel).mockReturnValue({
-    generateContent: mockGenerateContent,
-  } as unknown as ReturnType<typeof createGeminiModel>);
-}
-
-function mockModelNull() {
-  vi.mocked(createGeminiModel).mockReturnValue(null);
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-describe("summarizeCommentsWithAI", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockModelReady();
-  });
-
-  it("returns error for empty input without calling Gemini", async () => {
+describe("summarizeCommentsWithAI (Offline Rule-based)", () => {
+  it("returns error for empty input", async () => {
     const { result, error } = await summarizeCommentsWithAI([]);
     expect(result).toBeNull();
     expect(error).toBeTruthy();
-    expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
-  it("returns error when model is null (no API key)", async () => {
-    mockModelNull();
-    const { result, error } = await summarizeCommentsWithAI(makeComments(5));
-    expect(result).toBeNull();
-    expect(error).toContain("VITE_GEMINI_API_KEY");
-    expect(mockGenerateContent).not.toHaveBeenCalled();
-  });
+  it("returns offline summary result successfully", async () => {
+    const comments: CommentForAI[] = [
+      { id: "1", content: "sản phẩm chất lượng quá tốt" },
+      { id: "2", content: "chán ghét sản phẩm lừa đảo tệ" },
+      { id: "3", content: "bình thường không có gì đặc biệt" },
+    ];
 
-  it("calls Gemini and returns result on success", async () => {
-    mockGenerateContent.mockResolvedValueOnce({
-      response: { text: () => mockSummaryJson },
-    });
-
-    const { result, error } = await summarizeCommentsWithAI(makeComments(10));
+    const { result, error } = await summarizeCommentsWithAI(comments, "Tài khoản Test");
+    
     expect(error).toBeNull();
-    expect(result).toMatchObject({
-      summary: expect.any(String),
-      highlights: expect.any(Array),
-      actionItems: expect.any(Array),
-      keywords: expect.any(Array),
-    });
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result.summary).toContain("phân tích");
+      expect(result.highlights).toHaveLength(3); // 1 pos, 1 neg, 1 breakdown
+      expect(result.actionItems.length).toBeGreaterThan(0);
+      expect(result.keywords).toContain("sản");
+      expect(result.sentimentOverview).toEqual({
+        positive: 33,
+        neutral: 34,
+        negative: 33,
+      });
+    }
   });
 
-  it("passes accountName in prompt when provided", async () => {
-    mockGenerateContent.mockResolvedValueOnce({
-      response: { text: () => mockSummaryJson },
-    });
-
-    await summarizeCommentsWithAI(makeComments(5), "Page ABC");
-    const prompt = mockGenerateContent.mock.calls[0][0] as string;
-    expect(prompt).toContain("Page ABC");
-  });
-
-  it("returns error (not throws) when Gemini fails", async () => {
-    mockGenerateContent.mockRejectedValueOnce(new Error("Gemini unavailable"));
-
-    const { result, error } = await summarizeCommentsWithAI(makeComments(3));
-    expect(result).toBeNull();
-    expect(error).toContain("Gemini unavailable");
-  });
-
-  it("caps input to SUMMARY_LIMIT", async () => {
-    mockGenerateContent.mockResolvedValueOnce({
-      response: { text: () => mockSummaryJson },
-    });
-
-    await summarizeCommentsWithAI(makeComments(SUMMARY_LIMIT + 50));
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  it("caps and processes large amounts of comments successfully", async () => {
+    const { result, error } = await summarizeCommentsWithAI(makeComments(350), "Trang Lớn");
+    expect(error).toBeNull();
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result.sentimentOverview.positive).toBe(100);
+    }
   });
 });
