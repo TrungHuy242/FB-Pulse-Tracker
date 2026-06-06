@@ -15,6 +15,7 @@ import {
   detectModeConflicts,
   normalizeAccountName,
   buildImportSummaryLabel,
+  detectMultiProfile,
 } from "@/utils/importUtils";
 
 // ── computeTotalChunks ────────────────────────────────────────────────────────
@@ -195,5 +196,61 @@ describe("buildImportSummaryLabel", () => {
     // Vietnamese locale: 300 → "300", 150 → "150" (no thousands separator needed)
     expect(label).toContain("300");
     expect(label).toContain("150");
+  });
+});
+
+// ── detectMultiProfile ────────────────────────────────────────────────────────
+
+describe("detectMultiProfile", () => {
+  it("returns isMultiProfile=false for empty files array", () => {
+    expect(detectMultiProfile([])).toEqual({
+      isMultiProfile: false,
+      profilePartIndex: 0,
+    });
+  });
+
+  it("returns isMultiProfile=false for single-profile files (depth < 4, single root)", () => {
+    const files = [
+      { name: "MyAccount/comments/comments_v2.json" },
+      { name: "MyAccount/likes_and_reactions/posts_and_comments.json" },
+    ];
+    expect(detectMultiProfile(files)).toEqual({
+      isMultiProfile: false,
+      profilePartIndex: 0,
+    });
+  });
+
+  it("returns isMultiProfile=true for wrapper ZIP structure (depth >= 4)", () => {
+    // Structure: wrapper_folder/profile_name/comments/comments_v2.json (depth = 4)
+    const files = [
+      { name: "Archive/UserA/comments/comments_v2.json" },
+      { name: "Archive/UserA/likes_and_reactions/posts_and_comments.json" },
+    ];
+    expect(detectMultiProfile(files)).toEqual({
+      isMultiProfile: true,
+      profilePartIndex: 1,
+    });
+  });
+
+  it("returns isMultiProfile=true for multiple distinct roots", () => {
+    // Structure: profileA/comments/comments_v2.json, profileB/comments/comments_v2.json
+    const files = [
+      { name: "UserA/comments/comments_v2.json" },
+      { name: "UserB/comments/comments_v2.json" },
+    ];
+    expect(detectMultiProfile(files)).toEqual({
+      isMultiProfile: true,
+      profilePartIndex: 0,
+    });
+  });
+
+  it("handles profile names with special characters correctly", () => {
+    const files = [
+      { name: "User.Name-123/comments/comments_v2.json" },
+    ];
+    expect(detectMultiProfile(files)).toEqual({
+      isMultiProfile: false,
+      profilePartIndex: 0,
+    });
   });
 });

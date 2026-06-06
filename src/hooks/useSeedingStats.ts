@@ -1,6 +1,11 @@
 /**
- * useSeedingStats — Tính thống kê từ danh sách SeedingTask[].
- * Pure computation, không Firestore call.
+ * seedingStats — Tính thống kê từ danh sách SeedingTask[].
+ *
+ * Export:
+ *   computeSeedingStats(tasks) — pure function, dùng trong tests + SeedingPage
+ *   useSeedingStats(tasks)     — React hook wrapper (memoised)
+ *
+ * NOTE: File giữ tên useSeedingStats.ts cho backward compatibility với imports hiện có.
  */
 import { useMemo } from "react";
 import type { SeedingTask, SeedingStats } from "@/types/seeding";

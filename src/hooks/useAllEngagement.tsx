@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/service/firebase";
+import { withCache } from "@/service/queryCache";
 import type { StatsFilter } from "@/types";
 
 export interface LightComment {
@@ -33,7 +34,9 @@ export const useAllEngagement = (filter?: StatsFilter, refreshSignal?: number) =
       setLoading(true);
       try {
         const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
-        const importsSnap = await getDocs(q);
+        const importsSnap = await withCache("imports:list:raw", async () => {
+          return getDocs(q);
+        }, 60_000);
 
         const allComments: LightComment[] = [];
         const allReactions: LightReaction[] = [];
@@ -47,35 +50,45 @@ export const useAllEngagement = (filter?: StatsFilter, refreshSignal?: number) =
             } else if (!acct.includes(filter.name.toLowerCase())) continue;
           }
 
-          // Comments
+          // Comments (cached)
           try {
-            const cSnap = await getDocs(collection(db, "imports", imp.id, "commentChunks"));
-            for (const chunk of cSnap.docs) {
-              const items = (chunk.data().items ?? []) as LightComment[];
-              for (const item of items) {
-                if (fromTs || toTs) {
-                  const ct = (item.commentTime ?? 0) * 1000;
-                  if (fromTs && ct < fromTs) continue;
-                  if (toTs && ct > toTs) continue;
-                }
-                allComments.push(item);
+            const commentItems = await withCache(`imports:${imp.id}:comments`, async () => {
+              const cSnap = await getDocs(collection(db, "imports", imp.id, "commentChunks"));
+              const items: LightComment[] = [];
+              for (const chunk of cSnap.docs) {
+                items.push(...((chunk.data().items ?? []) as LightComment[]));
               }
+              return items;
+            }, 120_000);
+
+            for (const item of commentItems) {
+              if (fromTs || toTs) {
+                const ct = (item.commentTime ?? 0) * 1000;
+                if (fromTs && ct < fromTs) continue;
+                if (toTs && ct > toTs) continue;
+              }
+              allComments.push(item);
             }
           } catch { /* skip */ }
 
-          // Reactions
+          // Reactions (cached)
           try {
-            const rSnap = await getDocs(collection(db, "imports", imp.id, "reactionChunks"));
-            for (const chunk of rSnap.docs) {
-              const items = (chunk.data().items ?? []) as LightReaction[];
-              for (const item of items) {
-                if (fromTs || toTs) {
-                  const rt = (item.reactionTime ?? 0) * 1000;
-                  if (fromTs && rt < fromTs) continue;
-                  if (toTs && rt > toTs) continue;
-                }
-                allReactions.push(item);
+            const reactionItems = await withCache(`imports:${imp.id}:reactions`, async () => {
+              const rSnap = await getDocs(collection(db, "imports", imp.id, "reactionChunks"));
+              const items: LightReaction[] = [];
+              for (const chunk of rSnap.docs) {
+                items.push(...((chunk.data().items ?? []) as LightReaction[]));
               }
+              return items;
+            }, 120_000);
+
+            for (const item of reactionItems) {
+              if (fromTs || toTs) {
+                const rt = (item.reactionTime ?? 0) * 1000;
+                if (fromTs && rt < fromTs) continue;
+                if (toTs && rt > toTs) continue;
+              }
+              allReactions.push(item);
             }
           } catch { /* skip */ }
         }

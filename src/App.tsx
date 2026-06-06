@@ -1,25 +1,38 @@
-import React, { useEffect } from "react";
+import React, { useEffect, Suspense, lazy } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
 } from "react-router-dom";
-import { ConfigProvider, theme as antdThemeApi } from "antd";
+import { ConfigProvider, theme as antdThemeApi, Spin } from "antd";
 import viVN from "antd/locale/vi_VN";
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import LandingPage from "./pages/LandingPage";
-import AdminPage from "./pages/AdminPage";
-import ImportsPage from "./pages/ImportsPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import CommentsPage from "./pages/CommentsPage";
-import SettingsPage from "./pages/SettingsPage";
-import SeedingPage from "./pages/SeedingPage";
+// Pages — lazy loaded for route-level code splitting
+const HomePage      = lazy(() => import("./pages/HomePage"));
+const LoginPage     = lazy(() => import("./pages/LoginPage"));
+const LandingPage   = lazy(() => import("./pages/LandingPage"));
+const AdminPage     = lazy(() => import("./pages/AdminPage"));
+const ImportsPage   = lazy(() => import("./pages/ImportsPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const CommentsPage  = lazy(() => import("./pages/CommentsPage"));
+const SettingsPage  = lazy(() => import("./pages/SettingsPage"));
+const SeedingPage   = lazy(() => import("./pages/SeedingPage"));
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+/** Fallback khi trang đang lazy-load — hiển thị spinner nhẹ nhàng */
+function PageSpinner() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100vh", background: "var(--bg-page, #f5f5f5)",
+    }}>
+      <Spin size="large" />
+    </div>
+  );
+}
 
 // Design tokens — Supabase-inspired (DESIGN.md)
 // Single emerald primary #3ecf8e; everything else is monochrome.
@@ -127,35 +140,37 @@ function App() {
       <ThemedConfigProvider>
         <ErrorBoundary>
           <Router>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              {/* "/" → LandingPage (unauthenticated) hoặc HomePage (authenticated) */}
-              <Route path="/" element={<RootRoute />} />
-              <Route
-                path="/imports"
-                element={<RequireAuth><ImportsPage /></RequireAuth>}
-              />
-              <Route
-                path="/analytics"
-                element={<RequireAuth><AnalyticsPage /></RequireAuth>}
-              />
-              <Route
-                path="/comments"
-                element={<RequireAuth><CommentsPage /></RequireAuth>}
-              />
-              <Route
-                path="/settings"
-                element={<RequireAuth><SettingsPage /></RequireAuth>}
-              />
-              <Route
-                path="/seeding"
-                element={<RequireAuth><SeedingPage /></RequireAuth>}
-              />
-              <Route
-                path="/admin"
-                element={<RequireAuth><AdminPage /></RequireAuth>}
-              />
-            </Routes>
+            <Suspense fallback={<PageSpinner />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                {/* "/" → LandingPage (unauthenticated) hoặc HomePage (authenticated) */}
+                <Route path="/" element={<RootRoute />} />
+                <Route
+                  path="/imports"
+                  element={<RequireAuth><ImportsPage /></RequireAuth>}
+                />
+                <Route
+                  path="/analytics"
+                  element={<RequireAuth><AnalyticsPage /></RequireAuth>}
+                />
+                <Route
+                  path="/comments"
+                  element={<RequireAuth><CommentsPage /></RequireAuth>}
+                />
+                <Route
+                  path="/settings"
+                  element={<RequireAuth><SettingsPage /></RequireAuth>}
+                />
+                <Route
+                  path="/seeding"
+                  element={<RequireAuth><SeedingPage /></RequireAuth>}
+                />
+                <Route
+                  path="/admin"
+                  element={<RequireAuth><AdminPage /></RequireAuth>}
+                />
+              </Routes>
+            </Suspense>
           </Router>
         </ErrorBoundary>
       </ThemedConfigProvider>

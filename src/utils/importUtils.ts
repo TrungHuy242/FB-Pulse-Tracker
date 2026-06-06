@@ -81,3 +81,23 @@ export const buildImportSummaryLabel = (
     `${totalReactions.toLocaleString("vi-VN")} cảm xúc`
   );
 };
+
+/**
+ * Phát hiện xem một file ZIP chứa một hay nhiều profile Facebook.
+ * Cấu trúc ZIP đa profile:
+ * - Case 1: root/profileName/category/file.json (depth >= 4)
+ * - Case 2: profileA/category/file.json, profileB/... (distinct roots > 1)
+ */
+export const detectMultiProfile = (
+  files: ReadonlyArray<{ name: string }>
+): { isMultiProfile: boolean; profilePartIndex: number } => {
+  const hasDeepStructure = files.some(
+    (f) => f.name.split("/").filter(Boolean).length >= 4
+  );
+  const distinctRoots = new Set(
+    files.map((f) => f.name.split("/").filter(Boolean)[0]).filter(Boolean)
+  );
+  const isMultiProfile = hasDeepStructure || distinctRoots.size > 1;
+  const profilePartIndex = hasDeepStructure ? 1 : 0;
+  return { isMultiProfile, profilePartIndex };
+};

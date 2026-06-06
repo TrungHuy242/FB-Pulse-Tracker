@@ -3,6 +3,8 @@
  *
  * Collections: seedingProfiles · seedingCampaigns · seedingTasks · seedingComments
  * Phân quyền: read = isAllowedUser, write = isAdmin (Firestore Rules)
+ *
+ * FIX #12: Thêm onSnapshot subscriptions để SeedingPage cập nhật realtime.
  */
 import {
   collection,
@@ -17,6 +19,7 @@ import {
   orderBy,
   serverTimestamp,
   writeBatch,
+  onSnapshot,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/service/firebase";
@@ -36,6 +39,45 @@ const profilesRef  = () => collection(db, "seedingProfiles");
 const campaignsRef = () => collection(db, "seedingCampaigns");
 const tasksRef     = () => collection(db, "seedingTasks");
 const commentsRef  = () => collection(db, "seedingComments");
+
+// ── Realtime subscriptions ────────────────────────────────────────────────────
+
+/**
+ * Subscribe realtime vào campaigns collection.
+ * Trả về unsubscribe function — gọi trong useEffect cleanup.
+ */
+export function subscribeCampaigns(
+  callback: (campaigns: SeedingCampaign[]) => void
+): () => void {
+  const q = query(campaignsRef(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingCampaign)));
+  });
+}
+
+/**
+ * Subscribe realtime vào profiles collection.
+ */
+export function subscribeProfiles(
+  callback: (profiles: SeedingProfile[]) => void
+): () => void {
+  const q = query(profilesRef(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingProfile)));
+  });
+}
+
+/**
+ * Subscribe realtime vào comments library.
+ */
+export function subscribeCommentLibrary(
+  callback: (comments: SeedingComment[]) => void
+): () => void {
+  const q = query(commentsRef(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingComment)));
+  });
+}
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
 
