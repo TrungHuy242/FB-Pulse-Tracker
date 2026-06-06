@@ -330,6 +330,7 @@ firebase deploy --only firestore:rules
 | `/analytics` | AnalyticsPage | Auth | Charts sâu + AI Summary |
 | `/comments` | CommentsPage | Auth | Bình luận + AI badge + export |
 | `/settings` | SettingsPage | Auth | Cài đặt hiển thị + thông tin app |
+| `/seeding` | SeedingPage | Auth | Quản lý chiến dịch, profiles và thư viện seeding |
 | `/admin` | AdminPage | Admin | Quản lý tài khoản whitelist |
 
 ---

@@ -1,7 +1,7 @@
 # BÁO CÁO DỰ ÁN: FB Pulse Tracker
 
-> **Ngày báo cáo:** 30/05/2026  
-> **Phiên bản:** 1.5.0  
+> **Ngày báo cáo:** 05/06/2026  
+> **Phiên bản:** 1.6.0  
 > **Branch:** main  
 > **Repository:** https://github.com/TrungHuy242/FB-Pulse-Tracker
 
@@ -9,7 +9,7 @@
 
 ## 1. TỔNG QUAN
 
-**FB Pulse Tracker** là ứng dụng web phân tích dữ liệu engagement từ Facebook dành cho nội bộ. Người dùng import file ZIP từ Facebook Data Export, hệ thống lưu trữ và phân tích dữ liệu theo thời gian thực, bao gồm bình luận, cảm xúc, biểu đồ timeline, phân tích AI sentiment và AI summary.
+**FB Pulse Tracker** là ứng dụng web phân tích dữ liệu engagement từ Facebook dành cho nội bộ. Người dùng import file ZIP từ Facebook Data Export, hệ thống lưu trữ và phân tích dữ liệu theo thời gian thực, bao gồm bình luận, cảm xúc, biểu đồ timeline, phân tích AI sentiment và AI summary. Ngoài ra còn có module **Seeding** để quản lý chiến dịch tương tác Facebook tự động qua GPM Automate.
 
 | Thông tin | Chi tiết |
 |-----------|----------|
@@ -18,7 +18,7 @@
 | Dữ liệu xử lý | Comments + Reactions từ Facebook Data Export (ZIP) |
 | Truy cập | Chỉ tài khoản Google được whitelist |
 | Lưu trữ | Firebase Firestore (cloud) |
-| AI tích hợp | Claude Haiku qua Firebase Cloud Functions |
+| AI tích hợp | Google Gemini (`gemini-2.0-flash`) qua Firebase Cloud Functions |
 
 ---
 
@@ -38,14 +38,15 @@
 | JSZip | 3.10.1 | Parse file ZIP phía client |
 | xlsx | 0.18.5 | Export Excel |
 | Lodash | 4.17.21 | Utility functions |
-| Sentry | 10.54.0 | Error monitoring |
+| Sentry | (devDep) | Error monitoring |
+| @google/generative-ai | 0.24.1 | Gemini client (client-side, optional) |
 
 ### Backend / Cloud
 | Công nghệ | Phiên bản | Vai trò |
 |-----------|-----------|---------|
 | Firebase | 12.7.0 | Auth (Google), Firestore DB, Hosting |
-| Firebase Cloud Functions | v2 | AI API calls (server-side) |
-| Anthropic Claude Haiku | claude-haiku-4-5 | Phân tích sentiment + tóm tắt |
+| Firebase Cloud Functions | v2 (Node 20) | AI API calls (server-side) |
+| Google Gemini | `gemini-2.0-flash` | Phân tích sentiment, tóm tắt, SEO, leads, intent, seeding ideas |
 
 ### Testing & CI/CD
 | Công nghệ | Phiên bản | Vai trò |
@@ -56,7 +57,7 @@
 | GitHub Actions | — | CI pipeline |
 
 ### PWA
-- `vite-plugin-pwa` 1.3.0 — Service Worker + Workbox, offline cache, installable
+- `vite-plugin-pwa` — Service Worker + Workbox, offline cache, installable
 
 ---
 
@@ -78,10 +79,14 @@
 │                                                             │
 │  Firestore DB          Cloud Functions (Node 20)           │
 │  ├── allowedAccounts   ├── analyzeSentiment()              │
-│  └── imports/          │     └── Claude Haiku API          │
-│      ├── commentChunks └── summarizeComments()             │
-│      └── reactionChunks      └── Claude Haiku API          │
-│                                                             │
+│  ├── imports/          │     └── Gemini API               │
+│  │   ├── commentChunks ├── summarizeComments()            │
+│  │   └── reactionChunks│     └── Gemini API               │
+│  ├── seedingProfiles   ├── extractSeoKeywords()           │
+│  ├── seedingCampaigns  ├── scoreLeads()                   │
+│  ├── seedingTasks      ├── classifyIntent()               │
+│  └── seedingComments   └── generateSeedingIdeas()         │
+│                               └── Gemini API (tất cả)     │
 │  Hosting (Firebase)    Security Rules (Firestore)          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -95,11 +100,19 @@ User chọn ZIP → JSZip parse client-side → Detect single/multi-profile
     → finalizeImport() → Dashboard cập nhật real-time (onSnapshot)
 ```
 
+### Luồng Seeding (GPM Bridge)
+```
+Admin tạo Campaign → Thêm Tasks (profile × action × URL)
+    → Export Excel/CSV → GPM Automate thực thi
+    → Import Report (Excel/CSV) → Cập nhật task status
+    → Thống kê success rate
+```
+
 ### Phân quyền người dùng
 | Role | Quyền |
 |------|-------|
-| **Admin (role=1)** | Đọc + Import + Xóa + Quản lý tài khoản |
-| **Read-only (role=0)** | Chỉ đọc dữ liệu, không thể import hay xóa |
+| **Admin (role=1)** | Đọc + Import + Xóa + Quản lý tài khoản + Seeding CRUD |
+| **Read-only (role=0)** | Chỉ đọc dữ liệu, không thể import, xóa hay tạo seeding |
 | **Unauthenticated** | Chỉ xem LandingPage |
 
 ---
@@ -128,12 +141,12 @@ User chọn ZIP → JSZip parse client-side → Detect single/multi-profile
 - **TopCommentersChart**: Top người bình luận nhiều nhất
 - **InsightsPanel**: Auto-insights (giờ cao điểm, spike, top user...)
 - **PerformanceScoreTable**: Điểm hiệu quả 0–100, Grade A–F per account
-- **AiSummaryPanel**: Tóm tắt AI bình luận (Claude Haiku qua Cloud Functions)
+- **AiSummaryPanel**: Tóm tắt AI bình luận (Gemini qua Cloud Functions, tối đa 300 bình luận)
 
 ### 4.4 Bình luận (CommentsPage)
 - Tìm kiếm toàn văn theo nội dung
 - Lọc theo: tác giả, tài khoản, nhóm, cảm xúc, khoảng thời gian
-- **AI Sentiment Analysis**: Phân tích cảm xúc bằng Claude (tối đa 200 bình luận/lần)
+- **AI Sentiment Analysis**: Phân tích cảm xúc bằng Gemini (tối đa **50 bình luận/lần**)
 - Export: CSV (UTF-8 BOM), JSON, Excel (.xlsx)
 - **SentimentChart**: Phân bố cảm xúc (rule-based + AI)
 - **KeywordFreqChart**: Tần suất từ khóa top 20
@@ -144,13 +157,38 @@ User chọn ZIP → JSZip parse client-side → Detect single/multi-profile
 - Bulk delete với confirmation 2 bước
 - Export tất cả hoặc theo lựa chọn: Excel, CSV, JSON
 
-### 4.6 Admin (AdminPage)
+### 4.6 Seeding (SeedingPage) ← **Tính năng mới**
+Quản lý tự động hóa tương tác Facebook qua GPM Automate (bridge Excel/CSV).
+
+**Tab Chiến dịch:**
+- CRUD campaigns (draft → active → paused → completed)
+- Tạo tasks hàng loạt: chọn profiles + action (Like/Comment/Share) + URL
+- Export tasks → Excel/CSV để GPM Automate thực thi
+- Import report từ GPM về → cập nhật trạng thái task (pending/running/success/failed/skipped)
+- Thống kê success rate per campaign
+
+**Tab Profiles:**
+- Quản lý GPM profiles (Active/Inactive/Banned)
+- Import hàng loạt từ CSV/Excel (upsert theo profileId)
+- Export template Excel
+
+**Tab Thư viện:**
+- CRUD comment library với tags
+- Theo dõi usageCount
+
+**AI Seeding Features (CommentsPage):**
+- **extractSeoKeywords**: Trích xuất từ khóa SEO (tối đa 500 bình luận)
+- **scoreLeads**: Chấm điểm leads tiềm năng 0–100 (tối đa 200 bình luận)
+- **classifyIntent**: Phân loại ý định buy/inquiry/complaint/compliment/other (tối đa 100 bình luận)
+- **generateSeedingIdeas**: Đề xuất ý tưởng content seeding (tối đa 500 bình luận)
+
+### 4.7 Admin (AdminPage)
 - Quản lý whitelist tài khoản (thêm/sửa/xóa)
 - Tìm kiếm theo email/tên
 - Xóa toàn bộ Import data (double confirmation)
 - Bảo vệ: không thể xóa/sửa role của chính mình
 
-### 4.7 Settings
+### 4.8 Settings
 - Định dạng ngày giờ (VI/ISO/US)
 - Kích thước bảng (Compact/Default/Large)
 - Hiển thị số đầy đủ hoặc rút gọn (1.2M)
@@ -206,6 +244,7 @@ json-tool-main-main/
 │   │   ├── useInsights.ts             # Tính toán auto insights
 │   │   ├── usePerformanceScore.ts     # Tính điểm hiệu quả
 │   │   ├── useRealtimeImports.tsx     # Phát hiện import mới real-time
+│   │   ├── useSeedingStats.ts         # Tính thống kê seeding (success rate)
 │   │   └── useStats.tsx               # Tính thống kê tổng hợp
 │   ├── layouts/
 │   │   └── AppLayout.tsx              # Shell: sidebar + topbar + content
@@ -217,15 +256,18 @@ json-tool-main-main/
 │   │   ├── ImportsPage.tsx
 │   │   ├── LandingPage.tsx
 │   │   ├── LoginPage.tsx
+│   │   ├── SeedingPage.tsx            # ← MỚI: quản lý seeding/chiến dịch
 │   │   └── SettingsPage.tsx
 │   ├── service/
 │   │   ├── accountService.ts          # CRUD allowedAccounts
+│   │   ├── aiExtendedService.ts       # SEO/Leads/Intent/Seeding Ideas (Gemini)
 │   │   ├── aiSentimentService.ts      # Gọi Cloud Function analyzeSentiment
 │   │   ├── aiSummaryService.ts        # Gọi Cloud Function summarizeComments
 │   │   ├── authService.ts             # Google OAuth wrapper
 │   │   ├── firebase.ts                # Firebase app init
 │   │   ├── importService.ts           # CRUD imports + chunks
 │   │   ├── queryCache.ts              # In-memory cache layer
+│   │   ├── seedingService.ts          # ← MỚI: CRUD seedingProfiles/Campaigns/Tasks/Comments
 │   │   └── sentry.ts                  # Sentry init
 │   ├── styles/
 │   │   ├── accounts-table.scss        # AccountsTable card styles
@@ -236,18 +278,21 @@ json-tool-main-main/
 │   │   ├── print.scss                 # Print report styles
 │   │   ├── reaction-details.scss      # Reaction modal
 │   │   └── responsive.scss            # Global reset + responsive
-│   ├── test/                          # 24 test files — 274 tests
+│   ├── test/                          # 27 test files
 │   ├── types/
 │   │   ├── guards.ts                  # Runtime type guards (isImportRecord, ...)
-│   │   └── index.ts                   # Type definitions
+│   │   ├── index.ts                   # Type definitions chính
+│   │   └── seeding.ts                 # ← MỚI: Types cho seeding module
 │   └── utils/
 │       ├── array.ts                   # chunkArray()
 │       ├── encoding.ts                # Facebook encoding decode
+│       ├── geminiClient.ts            # ← MỚI: Gemini model factory (client-side)
 │       ├── importUtils.ts             # Import helper functions
 │       ├── notification.ts            # Web Push notification
+│       ├── seedingExport.ts           # ← MỚI: Export/Import Excel/CSV seeding
 │       └── sentiment.ts               # Rule-based sentiment analysis
 ├── functions/
-│   └── src/index.ts                   # Cloud Functions: analyzeSentiment, summarizeComments
+│   └── src/index.ts                   # 6 Cloud Functions: AI qua Google Gemini
 ├── e2e/                               # Playwright E2E tests
 ├── public/
 │   ├── icon-192.svg
@@ -256,7 +301,7 @@ json-tool-main-main/
 ├── .env.example                       # Template biến môi trường
 ├── CLAUDE.md                          # Hướng dẫn cho Claude Code
 ├── DESIGN.md                          # Design system tokens
-├── PROJECT_EVALUATION.md              # Đánh giá dự án (8.4/10)
+├── PROJECT_EVALUATION.md              # Đánh giá dự án
 ├── README.md                          # Tài liệu đầy đủ
 ├── BAO_CAO_DU_AN.md                   # File này
 ├── firebase.json                      # Firebase config
@@ -310,19 +355,94 @@ json-tool-main-main/
 }
 ```
 
+### Collection: `seedingProfiles/{id}` ← **Mới**
+```
+{
+  profileId:   string          // GPM Profile ID
+  profileName: string          // Tên hiển thị
+  status:      "active" | "inactive" | "banned"
+  note?:       string
+  createdAt:   Timestamp
+}
+```
+
+### Collection: `seedingCampaigns/{id}` ← **Mới**
+```
+{
+  name:        string
+  description?: string
+  status:      "draft" | "active" | "paused" | "completed"
+  targetUrl?:  string          // URL mặc định cho tasks
+  createdAt:   Timestamp
+  updatedAt:   Timestamp
+}
+```
+
+### Collection: `seedingTasks/{id}` ← **Mới**
+```
+{
+  campaignId:   string
+  profileId:    string         // GPM Profile ID
+  profileName:  string
+  action:       "like" | "comment" | "share"
+  targetUrl:    string
+  commentText?: string
+  shareCaption?: string
+  delayMin:     number         // Delay giây (min)
+  delayMax:     number         // Delay giây (max)
+  status:       "pending" | "running" | "success" | "failed" | "skipped"
+  exportedAt?:  Timestamp
+  finishedAt?:  Timestamp
+  errorMessage?: string
+  createdAt:    Timestamp
+}
+```
+
+### Collection: `seedingComments/{id}` ← **Mới**
+```
+{
+  text:       string           // Nội dung comment mẫu
+  tags:       string[]         // Nhãn phân loại
+  usageCount: number           // Số lần đã dùng
+  createdAt:  Timestamp
+}
+```
+
 ---
 
-## 7. BẢO MẬT
+## 7. CLOUD FUNCTIONS AI
+
+Tất cả 6 functions đều dùng **Google Gemini** (`gemini-2.0-flash`) qua `GEMINI_API_KEY` (server-side secret). Region: `asia-southeast1`.
+
+| Function | Giới hạn | Timeout | Mô tả |
+|----------|----------|---------|-------|
+| `analyzeSentiment` | 50 bình luận | 60s | Phân tích sentiment (positive/neutral/negative + score + keywords) |
+| `summarizeComments` | 300 bình luận | 120s | Tóm tắt + highlights + actionItems + sentimentOverview |
+| `extractSeoKeywords` | 500 bình luận | 60s | Trích xuất từ khóa SEO (frequency + relevance) |
+| `scoreLeads` | 200 bình luận | 60s | Chấm điểm leads 0–100 + intent + signals |
+| `classifyIntent` | 100 bình luận | 60s | Phân loại: buy/inquiry/complaint/compliment/other |
+| `generateSeedingIdeas` | 500 bình luận | 90s | Đề xuất ý tưởng content (title + format + angle) |
+
+**Cơ chế fallback:**
+- Rate-limit (429) → trả về neutral/empty result (không throw)
+- Timeout → throw `resource-exhausted`
+- Parse error → trả về fallback rỗng
+
+---
+
+## 8. BẢO MẬT
 
 ### Firebase Security Rules
 - `allowedAccounts`: Read = `isAuthenticated()`, Write = `isAdmin()` + validate schema
 - `imports`: Read = `isAllowedUser()` (phải trong whitelist), Write = `isAdmin()`
 - `commentChunks/reactionChunks`: Read = `isAllowedUser()`, Write = `isAdmin()`
+- `seedingProfiles/Campaigns/Tasks/Comments`: Read = `isAllowedUser()`, Write = `isAdmin()`
 - Catch-all cuối: `allow read, write: if false` — từ chối mọi collection chưa khai báo
 
-### API Key
-- `ANTHROPIC_API_KEY` **chỉ** tồn tại trong Firebase Cloud Functions environment
-- Không bao giờ expose ra frontend bundle
+### API Keys
+- `GEMINI_API_KEY` **chỉ** tồn tại trong Firebase Cloud Functions environment (secret)
+- `VITE_GEMINI_API_KEY` (optional) cho `geminiClient.ts` phía client — không bắt buộc
+- Không bao giờ commit key vào source code
 - `.env` trong `.gitignore` — không commit
 
 ### Validation
@@ -331,26 +451,31 @@ json-tool-main-main/
 
 ---
 
-## 8. TESTING
+## 9. TESTING
 
 | Loại | Số lượng | Coverage |
 |------|----------|---------|
-| Unit tests (Vitest) | 274 tests / 24 files | Logic + Utils + Hooks |
+| Unit tests (Vitest) | **27 test files** | Logic + Utils + Hooks + Services |
 | Component tests | WelcomeEmptyState, StatsCards, DatePresets, ThemeContext | Render + Interaction |
-| Service tests | Auth, AI Sentiment, AI Summary, Import, Cache | API + Fallback |
+| Service tests | Auth, AI Sentiment, AI Summary, Import, Cache, Sentry | API + Fallback |
+| Export tests | commentsExportCSV, commentsExportXLSX, csvExport, seedingExport | Export formats |
+| Hook tests | useAccountsTable, useInsights, usePerformanceScore, useSeedingStats, useRealtimeImports, useStats | State logic |
 | E2E tests (Playwright) | smoke.spec.ts, navigation.spec.ts | Happy path |
 
 **Test files chính:**
-- `importUtils.test.ts` — 22 tests: chunk calculation, mode detection, normalization
-- `typeGuards.test.ts` — 28 tests: runtime guards cho mọi data type
+- `importUtils.test.ts` — chunk calculation, mode detection, normalization
+- `typeGuards.test.ts` — runtime guards cho mọi data type
 - `useInsights.test.ts` — Insights logic: peak time, spike detection
 - `usePerformanceScore.test.ts` — Grade calculation A–F
 - `aiSentimentService.test.ts` — Cloud Function call + rule-based fallback
 - `sentiment.test.ts` — Rule-based sentiment scoring
+- `seedingExport.test.ts` — Export/Import Excel/CSV seeding tasks
+- `useSeedingStats.test.ts` — Success rate calculation
+- `importFlow.test.ts` — End-to-end import flow logic
 
 ---
 
-## 9. ROUTES
+## 10. ROUTES
 
 | Route | Component | Auth |
 |-------|-----------|------|
@@ -358,30 +483,32 @@ json-tool-main-main/
 | `/imports` | `ImportsPage` | Require auth |
 | `/analytics` | `AnalyticsPage` | Require auth |
 | `/comments` | `CommentsPage` | Require auth |
+| `/seeding` | `SeedingPage` ← **Mới** | Require auth |
 | `/settings` | `SettingsPage` | Require auth |
 | `/admin` | `AdminPage` | Require auth |
 | `/login` | `LoginPage` | — |
 
 ---
 
-## 10. HIỆU NĂNG
+## 11. HIỆU NĂNG
 
 - **Chunk-based upload**: Comments chia 700/chunk, Reactions chia 2000/chunk → tránh Firestore 1MB document limit
 - **Lazy loading**: Chart components (`KeywordFreqChart`, `SentimentChart`) load on-demand bằng `React.lazy`
 - **In-memory cache**: `queryCache.ts` cache Firestore reads với TTL 5 phút
 - **onSnapshot real-time**: `ImportDataContext` dùng Firestore listener thay vì polling
-- **PWA + Service Worker**: Workbox precache 17 entries (3.3MB), hoạt động offline
+- **PWA + Service Worker**: Workbox precache, hoạt động offline
+- **AI limit per call**: Sentiment 50, Summary 300, SEO/Seeding 500, Leads 200, Intent 100 — tránh timeout
 
 ---
 
-## 11. SCRIPTS
+## 12. SCRIPTS
 
 | Lệnh | Mô tả |
 |------|-------|
 | `npm run dev` | Dev server (Vite HMR) |
 | `npm run build` | TypeScript check + Vite production build |
 | `npm run lint` | ESLint check |
-| `npm run test` | Chạy toàn bộ unit tests (274 tests) |
+| `npm run test` | Chạy toàn bộ unit tests |
 | `npm run test:watch` | Watch mode |
 | `npm run test:coverage` | Coverage report |
 | `npm run test:e2e` | Playwright E2E |
@@ -389,49 +516,49 @@ json-tool-main-main/
 
 ---
 
-## 12. ĐÁNH GIÁ TỔNG THỂ
+## 13. ĐÁNH GIÁ TỔNG THỂ
 
 | Tiêu chí | Điểm | Nhận xét |
 |----------|------|----------|
 | Kiến trúc | 9/10 | Context separation rõ ràng, service layer tách biệt, type guards đầy đủ |
 | Code Quality | 9/10 | TypeScript strict, zero `any`, clean component structure |
-| Testing | 8/10 | 274 tests, E2E setup sẵn, coverage khá tốt |
+| Testing | 8/10 | 27 test files, E2E setup sẵn, coverage khá tốt |
 | Bảo mật | 9/10 | Firestore Rules chặt, API key server-side, schema validation |
 | Hiệu năng | 7/10 | Cache tốt, lazy load, nhưng chưa có Firestore pagination |
 | UX/UI | 8/10 | Supabase-inspired design system, dark mode, responsive, PWA |
+| Tính năng | 9/10 | Đầy đủ analytics + seeding module + 6 AI functions |
 | Tài liệu | 9/10 | README đầy đủ, DESIGN.md, CLAUDE.md, test coverage |
-| **Tổng** | **8.4/10** | **Cấp A — Production-ready** |
+| **Tổng** | **8.5/10** | **Cấp A — Production-ready** |
 
 ---
 
-## 13. CÔNG VIỆC DỌN DẸP ĐÃ THỰC HIỆN (30/05/2026)
+## 14. LỊCH SỬ THAY ĐỔI QUAN TRỌNG
 
-Đã xóa **12 file rác** không còn sử dụng:
+### v1.6.0 (05/06/2026)
+- **Đổi AI provider**: Claude Haiku → **Google Gemini** (`gemini-2.0-flash`) cho tất cả Cloud Functions
+- **Thêm SeedingPage**: Module quản lý chiến dịch seeding Facebook (Campaigns / Profiles / Comment Library)
+- **Thêm 4 Cloud Functions AI mới**: `extractSeoKeywords`, `scoreLeads`, `classifyIntent`, `generateSeedingIdeas`
+- **Thêm aiExtendedService.ts**: Client wrapper cho 4 functions AI mới
+- **Thêm seedingService.ts**: CRUD Firestore cho 4 collections seeding mới
+- **Thêm geminiClient.ts**: Gemini model factory (client-side, optional)
+- **Thêm seedingExport.ts**: Export/Import Excel/CSV cho seeding tasks
+- **Thêm useSeedingStats.ts**: Hook tính success rate seeding
+- **Thêm route `/seeding`**: SeedingPage vào App router
+- **Test coverage mở rộng**: 27 test files (thêm seedingExport, useSeedingStats, importFlow, ...)
 
-| File | Lý do xóa |
-|------|-----------|
-| `src/components/Header.tsx` | Dead code — thay bởi `AppLayout.tsx`, không import ở đâu |
-| `src/components/header/BrandLogo.tsx` | Chỉ dùng bởi Header.tsx (đã xóa) |
-| `src/components/header/FilterBar.tsx` | Chỉ dùng bởi Header.tsx (đã xóa) |
-| `src/components/header/UserMenu.tsx` | Chỉ dùng bởi Header.tsx (đã xóa) |
-| `src/styles/table.scss` | Không được import bởi file nào |
-| `src/assets/react.svg` | Leftover từ Vite scaffold mặc định |
-| `public/vite.svg` | Leftover từ Vite scaffold mặc định |
-| `HuongPhatTrien.md` | Tài liệu hướng phát triển cũ, không liên quan source code |
-| `đánh-giá.md` | Báo cáo đánh giá cũ, thay bởi `PROJECT_EVALUATION.md` |
-| `LOADING_HOOK.md` | Nội dung đã có trong code comments |
-| `PROJECT_STRUCTURE.md` | Cấu trúc lỗi thời (còn ghi BarChart.tsx, LineChart.tsx không tồn tại), thay bởi README.md |
-| `Log/Accessibility Report — Fb Pulse Tracker.pdf` | PDF audit không thuộc source code |
-
-**Sau khi dọn:** Build OK · 274/274 tests pass · TypeScript clean
+### v1.5.0 (30/05/2026)
+- Dọn dẹp 12 file rác (Header.tsx, header/, table.scss, assets/react.svg, ...)
+- Build OK · Tests pass · TypeScript clean
 
 ---
 
-## 14. HƯỚNG PHÁT TRIỂN TIẾP THEO (P1)
+## 15. HƯỚNG PHÁT TRIỂN TIẾP THEO (P1)
 
 | Task | Lý do |
 |------|-------|
 | Firestore pagination (cursor-based) | Tránh tải toàn bộ comments/reactions khi data lớn |
-| E2E test cases bổ sung | smoke.spec.ts chỉ test login, cần thêm import flow |
-| Bundle splitting | main chunk hiện 3.3MB, cần tách vendor/echarts |
-| Rate limiting Cloud Functions | Tránh abuse Claude API |
+| E2E test cases bổ sung | smoke.spec.ts chỉ test login, cần thêm import flow + seeding flow |
+| Bundle splitting | main chunk cần tách vendor/echarts |
+| Rate limiting Cloud Functions | Tránh abuse Gemini API |
+| Seeding task realtime listener | Hiện tại load on-demand, chưa realtime |
+| Tích hợp GPM API trực tiếp | Thay thế bridge Excel/CSV |
