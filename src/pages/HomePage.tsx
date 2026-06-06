@@ -6,8 +6,10 @@ import { StatsCards } from "@/components/StatsCards";
 import EngagementChart from "@/components/EngagementChart";
 import { AccountsTable } from "@/components/AccountsTable";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
+import { TopProfiles } from "@/components/TopProfiles";
+import { SentimentEfficiency } from "@/components/SentimentEfficiency";
 import { useRef, useState, useMemo } from "react";
-import { Row, Col, Button, DatePicker, Select, Tooltip, Space } from "antd";
+import { Button, DatePicker, Select, Tooltip, Space } from "antd";
 import { FileTextOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useStats } from "@/hooks/useStats";
@@ -194,36 +196,55 @@ export default function HomePage() {
   const showWelcome = !importsLoading && allImports.length === 0;
 
   return (
-    <AppLayout title="Tổng quan" topBar={topBar}>
+    <AppLayout title="Overview" topBar={topBar}>
       {/* ── Onboarding empty state ── */}
       {showWelcome ? (
         <WelcomeEmptyState onImport={() => importRef.current?.open()} />
       ) : (
         <>
-          <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-            <Col xs={24} lg={8}>
-              <StatsCards
-                stats={stats}
-                prevStats={prevStats}
-                loading={statsLoading}
-                dateLabel={dateLabel}
-              />
-            </Col>
-            <Col xs={24} lg={16}>
-              <EngagementChart
-                filter={effectiveFilter}
-                refreshSignal={refreshSignal}
-              />
-            </Col>
-          </Row>
-
-          <AccountsTable
-            ref={accountsTableRef}
-            filter={effectiveFilter}
-            reloadStats={reloadStats}
-            refreshSignal={refreshSignal}
-            onDataChange={() => setRefreshSignal((s) => s + 1)}
+          {/* Row 1: StatsCards */}
+          <StatsCards
+            stats={stats}
+            prevStats={prevStats}
+            loading={statsLoading}
+            dateLabel={dateLabel}
           />
+
+          {/* Row 2: Charts and Top Profiles */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginBottom: 20 }}>
+            <div style={{ gridColumn: "span 2" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 20 }}>
+                <div>
+                  <EngagementChart
+                    filter={effectiveFilter}
+                    refreshSignal={refreshSignal}
+                  />
+                </div>
+                <div>
+                  <TopProfiles />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Sentiment */}
+          <div style={{ marginBottom: 24 }}>
+            <SentimentEfficiency />
+          </div>
+
+          {/* Row 4: AccountsTable */}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "var(--page-title)" }}>
+              Quản lý Imports
+            </div>
+            <AccountsTable
+              ref={accountsTableRef}
+              filter={effectiveFilter}
+              reloadStats={reloadStats}
+              refreshSignal={refreshSignal}
+              onDataChange={() => setRefreshSignal((s) => s + 1)}
+            />
+          </div>
         </>
       )}
 

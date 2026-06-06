@@ -186,6 +186,8 @@
       padding: 12px 14px;
       border-top: 1px solid var(--sidebar-border);
       flex-shrink: 0;
+      // Ensure dropdown opens upward and is not clipped
+      overflow: visible;
 
       // Override user button inline styles with CSS vars
       button.sidebar-user-btn {

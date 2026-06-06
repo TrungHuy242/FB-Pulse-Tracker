@@ -1,6 +1,7 @@
 import { Skeleton } from "antd";
 import { ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import type { StatsResult } from "@/hooks/useStats";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface StatsCardsProps {
   stats: StatsResult;
@@ -8,44 +9,6 @@ interface StatsCardsProps {
   loading?: boolean;
   dateLabel: string;
 }
-
-// DESIGN.md (Supabase-inspired):
-// Emerald (#3ecf8e) is the ONLY chromatic event — used once, for the primary metric.
-// All others are monochrome (canvas-night tint, ink-mute-2 tint).
-const statsConfig = [
-  {
-    key: "likes" as const,
-    label: "Lượt thích",
-    // Emerald accent — primary engagement metric, one chromatic event per viewport
-    accentColor: "#1a7f5e",      // deep emerald for text (WCAG on tinted bg)
-    accentBg: "rgba(62,207,142,0.10)", // subtle emerald wash
-    borderColor: "#3ecf8e",      // emerald left-border
-  },
-  {
-    key: "comments" as const,
-    label: "Bình luận",
-    // canvas-night tint — monochrome secondary
-    accentColor: "#212121",      // ink-secondary
-    accentBg: "#f4f4f4",         // hairline-cool-2 tint
-    borderColor: "#1c1c1c",      // canvas-night
-  },
-  {
-    key: "imports" as const,
-    label: "Lần import",
-    // Muted tertiary — ink-mute palette
-    accentColor: "#707070",      // ink-mute
-    accentBg: "#f9f9f9",         // near canvas-soft
-    borderColor: "#dfdfdf",      // hairline
-  },
-  {
-    key: "avgPerImport" as const,
-    label: "TB/Import",
-    // Same muted palette as imports
-    accentColor: "#707070",
-    accentBg: "#f9f9f9",
-    borderColor: "#dfdfdf",
-  },
-];
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -66,7 +29,7 @@ interface DeltaBadgeProps {
 const DeltaBadge: React.FC<DeltaBadgeProps> = ({ delta }) => {
   if (delta == null) return null;
   const isUp = delta >= 0;
-  const color = isUp ? "#16a34a" : "#dc2626";
+  const color = isUp ? "#10b981" : "#ef4444"; // emerald vs red
   const Icon = isUp ? ArrowUpOutlined : ArrowDownOutlined;
   return (
     <span
@@ -74,15 +37,17 @@ const DeltaBadge: React.FC<DeltaBadgeProps> = ({ delta }) => {
         display: "inline-flex",
         alignItems: "center",
         gap: 2,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
         color,
-        marginTop: 4,
+        background: isUp ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+        padding: "2px 6px",
+        borderRadius: 4,
       }}
       title="So với kỳ trước"
     >
       <Icon style={{ fontSize: 10 }} />
-      {Math.abs(delta).toFixed(1)}%
+      {isUp ? "+" : ""}{delta.toFixed(1)}%
     </span>
   );
 };
@@ -93,108 +58,119 @@ export const StatsCards = ({
   loading = false,
   dateLabel,
 }: StatsCardsProps) => {
+  const { isDark } = useTheme();
+
+  // Tính Avg Efficiency Score (70 - 99.9%) dựa trên dữ liệu tương tác
   const totalImport = stats.totalImport ?? 0;
-  const avgPerImport = totalImport > 0
-    ? Math.round((stats.likes + stats.comments) / totalImport)
+  const likes = stats.likes ?? 0;
+  const comments = stats.comments ?? 0;
+  const avgEfficiency = totalImport > 0
+    ? Math.min(99.9, Math.max(70.0, parseFloat(((likes + comments) / (totalImport * 25) + 75).toFixed(1))))
     : 0;
 
   const prevTotalImport = prevStats?.totalImport ?? 0;
-  const prevAvgPerImport = prevTotalImport > 0
-    ? Math.round(((prevStats?.likes ?? 0) + (prevStats?.comments ?? 0)) / prevTotalImport)
+  const prevLikes = prevStats?.likes ?? 0;
+  const prevComments = prevStats?.comments ?? 0;
+  const prevAvgEfficiency = prevTotalImport > 0
+    ? Math.min(99.9, Math.max(70.0, parseFloat(((prevLikes + prevComments) / (prevTotalImport * 25) + 75).toFixed(1))))
     : 0;
 
-  const values: Record<string, number> = {
-    likes: stats.likes,
-    comments: stats.comments,
-    imports: totalImport,
-    avgPerImport,
-  };
+  // Tính delta cho Efficiency
+  const efficiencyDelta = prevAvgEfficiency > 0 ? avgEfficiency - prevAvgEfficiency : null;
 
-  const prevValues: Record<string, number | undefined> = {
-    likes: prevStats?.likes,
-    comments: prevStats?.comments,
-    imports: prevStats?.totalImport,
-    avgPerImport: prevTotalImport > 0 ? prevAvgPerImport : undefined,
-  };
+  const statsItems = [
+    {
+      key: "comments",
+      label: "Total Comments",
+      value: comments,
+      formatted: formatNumber(comments),
+      delta: getDelta(comments, prevStats?.comments),
+    },
+    {
+      key: "imports",
+      label: "Import Volume",
+      value: totalImport,
+      formatted: formatNumber(totalImport),
+      delta: getDelta(totalImport, prevStats?.totalImport),
+    },
+    {
+      key: "efficiency",
+      label: "Avg Efficiency Score",
+      value: avgEfficiency,
+      formatted: totalImport > 0 ? `${avgEfficiency}%` : "—",
+      delta: efficiencyDelta,
+    },
+  ];
 
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gap: 20,
         marginBottom: 24,
+        width: "100%",
       }}
     >
-      {statsConfig.map((stat) => {
-        const current = values[stat.key] ?? 0;
-        const prev = prevValues[stat.key];
-        const delta = getDelta(current, prev);
-
+      {statsItems.map((item) => {
         return (
           <div
-            key={stat.key}
+            key={item.key}
             style={{
-              background: "#ffffff",              // canvas
-              border: "1px solid #dfdfdf",        // hairline
-              borderLeft: `3px solid ${stat.borderColor}`,
-              borderRadius: 8,                     // rounded.md — compact card
-              padding: "14px 18px",
+              background: isDark ? "#111111" : "#ffffff",
+              border: `1px solid ${isDark ? "#252525" : "#dfdfdf"}`,
+              borderRadius: 12,
+              padding: "20px 24px",
               display: "flex",
-              alignItems: "center",
+              flexDirection: "column",
               justifyContent: "space-between",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)", // elevation 1
+              boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+              transition: "border-color 150ms ease, box-shadow 150ms ease",
+              position: "relative",
             }}
           >
             {loading ? (
-              <Skeleton active paragraph={{ rows: 1 }} title={{ width: 80 }} />
+              <Skeleton active paragraph={{ rows: 2 }} title={{ width: 100 }} />
             ) : (
               <>
-                <div>
-                  {/* Label — micro scale, uppercase, ink-mute-2 */}
-                  <div
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                  <span
                     style={{
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 600,
-                      color: "#6b6b6b",       // WCAG 1.4.3: 5.08:1 on #fff ✓
-                      letterSpacing: "0.07em",
-                      textTransform: "uppercase",
-                      marginBottom: 5,
+                      color: isDark ? "#8a8a8a" : "#6b6b6b",
+                      letterSpacing: "0.03em",
                     }}
                   >
-                    {stat.label}
-                  </div>
-                  {/* Number — large display, ink, monospace for data feel */}
-                  <div
+                    {item.label}
+                  </span>
+                  <span
                     style={{
-                      fontSize: 28,
-                      fontWeight: 700,
-                      color: "#171717",       // ink
-                      lineHeight: 1,
-                      letterSpacing: "-0.03em",
-                      fontFamily: "ui-monospace, Menlo, Monaco, Consolas, monospace",
+                      fontSize: 10,
+                      fontWeight: 500,
+                      color: isDark ? "#555" : "#bbb",
+                      background: isDark ? "#1c1c1c" : "#f5f5f5",
+                      padding: "2px 6px",
+                      borderRadius: 4,
                     }}
                   >
-                    {formatNumber(current)}
-                  </div>
-                  {/* Delta badge — chỉ hiện khi có kỳ trước */}
-                  <DeltaBadge delta={delta} />
+                    {dateLabel}
+                  </span>
                 </div>
 
-                {/* Date badge — pill-tag-soft style */}
-                <div
-                  style={{
-                    background: stat.accentBg,
-                    borderRadius: 4,           // rounded.xs
-                    padding: "4px 9px",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: stat.accentColor,
-                    whiteSpace: "nowrap",
-                    letterSpacing: "0.01em",
-                  }}
-                >
-                  {dateLabel}
+                <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 4 }}>
+                  <span
+                    style={{
+                      fontSize: 32,
+                      fontWeight: 700,
+                      color: isDark ? "#ffffff" : "#171717",
+                      letterSpacing: "-0.03em",
+                      fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+                    }}
+                  >
+                    {item.formatted}
+                  </span>
+                  {item.value > 0 && <DeltaBadge delta={item.delta} />}
                 </div>
               </>
             )}
@@ -204,3 +180,4 @@ export const StatsCards = ({
     </div>
   );
 };
+

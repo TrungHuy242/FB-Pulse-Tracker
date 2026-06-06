@@ -24,9 +24,12 @@ import {
   CloseOutlined,
   UserOutlined,
   PlayCircleOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "@/contexts/ThemeContext";
 import "@/styles/layout.scss";
 
 interface NavItemConfig {
@@ -63,6 +66,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isActive = (path: string) => {
@@ -121,19 +125,43 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
       <aside className={`app-sidebar${sidebarOpen ? " open" : ""}`}>
         {/* Brand */}
         <NavLink to="/" className="sidebar-brand" style={{ textDecoration: "none" }}>
-          <div className="brand-icon">
-            <BarChartOutlined />
+          <div className="brand-icon" style={{ background: "#10b981" }}>
+            <BarChartOutlined style={{ color: "#ffffff" }} />
           </div>
-          <span className="brand-name">FB Pulse</span>
+          <span className="brand-name" style={{ color: "#10b981", fontWeight: 700 }}>Pulse Tracker</span>
         </NavLink>
 
         {/* Navigation */}
-        <nav className="sidebar-nav">
-          <div className="nav-section-label">Phân tích</div>
-          {NAV_ITEMS.map(renderNavItem)}
+        <nav className="sidebar-nav" style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1 }}>
+            <div className="nav-section-label">Phân tích</div>
+            {NAV_ITEMS.map(renderNavItem)}
 
-          <div className="nav-section-label" style={{ marginTop: 8 }}>Hệ thống</div>
-          {BOTTOM_NAV_ITEMS.map(renderNavItem)}
+            <div className="nav-section-label" style={{ marginTop: 8 }}>Hệ thống</div>
+            {BOTTOM_NAV_ITEMS.map(renderNavItem)}
+          </div>
+          <div style={{ padding: "10px 8px 0", marginTop: 20 }}>
+            <Button
+              type="primary"
+              style={{
+                width: "100%",
+                background: "#10b981",
+                borderColor: "#10b981",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: 12,
+                height: 36,
+                borderRadius: 6,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "none"
+              }}
+              onClick={() => navigate("/settings")}
+            >
+              Upgrade Plan
+            </Button>
+          </div>
         </nav>
 
         {/* Footer */}
@@ -209,6 +237,30 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
             {title && <span className="page-title">{title}</span>}
             {title && topBar && <div className="topbar-divider" />}
             {topBar}
+          </div>
+
+          {/* ── Right side: theme toggle ────────────────────────────────── */}
+          <div className="topbar-right">
+            <Tooltip title={isDark ? "Chuyển sang Light Mode" : "Chuyển sang Dark Mode"}>
+              <Button
+                type="text"
+                size="small"
+                icon={isDark
+                  ? <SunOutlined style={{ color: "#fbbf24", fontSize: 15 }} />
+                  : <MoonOutlined style={{ fontSize: 15 }} />
+                }
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                aria-label="Toggle theme"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              />
+            </Tooltip>
           </div>
         </div>
 
