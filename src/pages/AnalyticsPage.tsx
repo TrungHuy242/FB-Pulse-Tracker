@@ -2,8 +2,10 @@
  * AnalyticsPage — Trang phân tích sâu.
  * Charts: Timeline, Pie (reaction types), Heatmap, Top Commenters,
  *         SentimentChart, InsightsPanel, AI Summary.
+ * Filter state được sync lên URL query string để dễ share và restore.
  */
 import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Row, Col, Button, DatePicker, Select, Space, Tooltip, Skeleton } from "antd";
 import { RobotOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -43,11 +45,43 @@ function ChartSkeleton({ height = 280 }: { height?: number }) {
 }
 
 export default function AnalyticsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const selectContainerRef = useRef<HTMLDivElement>(null);
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+
+  // Restore filter from URL on mount
+  const initRange = useMemo(() => {
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    if (from && to) {
+      const f = dayjs(from);
+      const t = dayjs(to);
+      if (f.isValid() && t.isValid()) return [f, t] as [dayjs.Dayjs, dayjs.Dayjs];
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const initAccounts = useMemo(() => {
+    const acc = searchParams.get("accounts");
+    return acc ? acc.split(",").filter(Boolean) : undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(initRange);
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[] | undefined>(undefined);
-  const [appliedFilter, setAppliedFilter] = useState<StatsFilter>({});
+  const [selectedAccounts, setSelectedAccounts] = useState<string[] | undefined>(initAccounts);
+
+  // Init appliedFilter from URL params
+  const [appliedFilter, setAppliedFilter] = useState<StatsFilter>(() => {
+    if (initRange && initRange[0] && initRange[1]) {
+      return {
+        from: initRange[0].startOf("day").toDate(),
+        to: initRange[1].endOf("day").toDate(),
+        name: initAccounts?.length ? initAccounts : undefined,
+      };
+    }
+    return {};
+  });
   const [refreshSignal, setRefreshSignal] = useState(0);
 
   // AI Summary state
@@ -125,19 +159,36 @@ export default function AnalyticsPage() {
       from = dayjs(range[0]).startOf("day").toDate();
       to = dayjs(range[1]).endOf("day").toDate();
     }
-    setAppliedFilter({ from, to, name: selectedAccounts?.length ? selectedAccounts : undefined });
+    const names = selectedAccounts?.length ? selectedAccounts : undefined;
+    setAppliedFilter({ from, to, name: names });
     setRefreshSignal((s) => s + 1);
+    // Sync to URL
+    const params: Record<string, string> = {};
+    if (from && to) {
+      params.from = dayjs(from).format("YYYY-MM-DD");
+      params.to = dayjs(to).format("YYYY-MM-DD");
+    }
+    if (names?.length) params.accounts = names.join(",");
+    setSearchParams(params, { replace: true });
   };
 
   /** Khi user chọn preset: cập nhật range picker + apply filter ngay */
   const handlePresetApply = (from: dayjs.Dayjs, to: dayjs.Dayjs) => {
     setRange([from, to]);
+    const names = selectedAccounts?.length ? selectedAccounts : undefined;
     setAppliedFilter({
       from: from.startOf("day").toDate(),
       to: to.endOf("day").toDate(),
-      name: selectedAccounts?.length ? selectedAccounts : undefined,
+      name: names,
     });
     setRefreshSignal((s) => s + 1);
+    // Sync to URL
+    const params: Record<string, string> = {
+      from: from.format("YYYY-MM-DD"),
+      to: to.format("YYYY-MM-DD"),
+    };
+    if (names?.length) params.accounts = names.join(",");
+    setSearchParams(params, { replace: true });
   };
 
   const handleClear = () => {
@@ -145,6 +196,7 @@ export default function AnalyticsPage() {
     setSelectedAccounts(undefined);
     setAppliedFilter({});
     setRefreshSignal((s) => s + 1);
+    setSearchParams({}, { replace: true }); // Clear URL params
   };
 
   const topBar = (
@@ -308,7 +360,7 @@ export default function AnalyticsPage() {
       <Row gutter={[20, 20]}>
         <Col xs={24}>
           <ErrorBoundary inline section="Performance Score">
-            <PerformanceScoreTable />
+            <PerformanceScoreTable filter={effectiveFilter} />
           </ErrorBoundary>
         </Col>
       </Row>

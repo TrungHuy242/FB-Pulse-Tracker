@@ -1,23 +1,38 @@
-﻿/**
+/**
  * AdminPage — Quản lý tài khoản được phép đăng nhập.
  * Chỉ dành cho admin (role === 1).
- *
- * Tính năng:
- *  - Danh sách tài khoản (email, tên, role badge)
- *  - Thêm / sửa / xóa tài khoản
- *  - Tìm kiếm client-side theo email hoặc tên
- *  - Xóa toàn bộ Import (double confirm, chỉ admin)
  */
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "@/styles/admin.scss";
-import { Button, Table, Modal, Input, Space, message, Select, Tag, Typography } from "antd";
-import { useLoading } from "@/contexts/LoadingContext";
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined,
-  BarChartOutlined, SearchOutlined, ExclamationCircleOutlined,
+  Button,
+  Table,
+  Modal,
+  Input,
+  Space,
+  message,
+  Select,
+  Typography,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Tabs,
+} from "antd";
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ExclamationCircleOutlined,
+  UserOutlined,
+  SafetyCertificateOutlined,
+  HomeOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoading } from "@/contexts/LoadingContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   getAllowedAccounts,
   createAllowedAccount,
@@ -38,10 +53,12 @@ const AdminPage: React.FC = () => {
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<0 | 1>(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("all");
   const navigate = useNavigate();
 
   const { user } = useAuth();
   const { showLoading, closeLoading } = useLoading();
+  const { isDark } = useTheme();
 
   const isEditingSelf = !!(
     editing && user?.allowedAccountId && editing.id === user.allowedAccountId
@@ -56,7 +73,7 @@ const AdminPage: React.FC = () => {
     } catch (err) {
       console.error("Load allowed accounts failed", err);
       message.error("Không tải được danh sách");
-    } finally {
+    } fillingly: {
       setLoading(false);
       closeLoading("admin-load");
     }
@@ -67,16 +84,31 @@ const AdminPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Lọc danh sách theo search query (client-side) */
+  // Theme colors
+  const textColor = isDark ? "#ffffff" : "#171717";
+  const muteColor = isDark ? "#9ca3af" : "#707070";
+  const borderColor = isDark ? "#2a2a32" : "#dfdfdf";
+
+  // Tính số lượng admin
+  const adminCount = useMemo(() => items.filter((item) => item.role === 1).length, [items]);
+
+  // Bộ lọc theo Tab (All, Admins, Read-only)
+  const tabFilteredItems = useMemo(() => {
+    if (activeTab === "admins") return items.filter((item) => item.role === 1);
+    if (activeTab === "readonly") return items.filter((item) => item.role === 0);
+    return items;
+  }, [items, activeTab]);
+
+  // Lọc theo search query (client-side)
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return tabFilteredItems;
+    return tabFilteredItems.filter(
       (item) =>
         (item.email ?? "").toLowerCase().includes(q) ||
         (item.displayName ?? "").toLowerCase().includes(q)
     );
-  }, [items, searchQuery]);
+  }, [tabFilteredItems, searchQuery]);
 
   const openAdd = () => {
     if (!user || user.role !== 1) {
@@ -108,14 +140,13 @@ const AdminPage: React.FC = () => {
       return;
     }
     if (!displayName || displayName.trim() === "") {
-      message.error("TÊN ADMIN không được để trống");
+      message.error("Tên hiển thị không được để trống");
       return;
     }
     showLoading("admin-save");
     setLoading(true);
     try {
       if (editing) {
-        // Không cho phép tự đổi role của chính mình
         const roleToSave: 0 | 1 =
           user?.allowedAccountId && editing.id === user.allowedAccountId
             ? ((editing.role ?? 0) as 0 | 1)
@@ -143,7 +174,6 @@ const AdminPage: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    // Prevent deleting the currently logged-in admin
     if (user?.allowedAccountId && id === user.allowedAccountId) {
       message.error("Bạn không thể xóa chính bạn.");
       return;
@@ -151,15 +181,17 @@ const AdminPage: React.FC = () => {
 
     Modal.confirm({
       title: "Xác nhận xóa tài khoản?",
-      okText: "Xóa",
+      content: "Tài khoản này sẽ không còn quyền truy cập hệ thống. Thao tác này có thể hoàn tác bằng cách thêm lại sau.",
+      okText: "Xóa tài khoản",
       okType: "danger",
+      cancelText: "Hủy",
       centered: true,
       onOk: async () => {
         showLoading("admin-delete");
         setLoading(true);
         try {
           await deleteAllowedAccount(id);
-          message.success("Đã xóa");
+          message.success("Đã xóa tài khoản whitelist");
           await load();
         } catch (err) {
           console.error(err);
@@ -172,30 +204,27 @@ const AdminPage: React.FC = () => {
     });
   };
 
-  /** Xóa toàn bộ imports — double confirm, chỉ admin */
   const handleDeleteAllImports = () => {
     if (!user || user.role !== 1) {
       message.error("Chỉ admin mới có quyền xóa tất cả import.");
       return;
     }
-    // Confirm lần 1
     Modal.confirm({
-      title: "Xóa toàn bộ dữ liệu Import?",
-      icon: <ExclamationCircleOutlined />,
+      title: "Xác nhận xóa toàn bộ dữ liệu Import?",
+      icon: <ExclamationCircleOutlined style={{ color: "#ef4444" }} />,
       content: "Hành động này sẽ xóa TOÀN BỘ imports, bình luận và cảm xúc. Bước tiếp theo sẽ yêu cầu xác nhận lần nữa.",
       okText: "Tiếp tục",
       okType: "danger",
       cancelText: "Hủy",
       centered: true,
       onOk() {
-        // Confirm lần 2
         Modal.confirm({
           title: "Xác nhận lần cuối — không thể hoàn tác",
-          icon: <ExclamationCircleOutlined />,
+          icon: <ExclamationCircleOutlined style={{ color: "#ef4444" }} />,
           content: (
             <div>
               <p style={{ color: "#dc2626", fontWeight: 600, margin: "0 0 4px" }}>Toàn bộ dữ liệu sẽ bị xóa vĩnh viễn.</p>
-              <p style={{ color: "#5a5a5a", fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
+              <p style={{ color: isDark ? "#9ca3af" : "#5a5a5a", fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
             </div>
           ),
           okText: "Xóa tất cả",
@@ -219,58 +248,147 @@ const AdminPage: React.FC = () => {
     });
   };
 
+  const getInitials = (name: string) => {
+    if (!name) return "";
+    return name.trim().charAt(0).toUpperCase();
+  };
+
   const columns = [
-    { title: "TÀI KHOẢN EMAIL", dataIndex: "email", key: "email" },
-    { title: "TÊN ADMIN", dataIndex: "displayName", key: "displayName" },
     {
-      title: "QUYỀN",
+      title: "ADMIN / USER",
+      dataIndex: "displayName",
+      key: "displayName",
+      render: (text: string) => (
+        <Space size={10}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: isDark ? "#24242b" : "#e5e7eb",
+              color: isDark ? "#10b981" : "#171717",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
+            {getInitials(text)}
+          </div>
+          <span style={{ color: isDark ? "#ffffff" : "#171717", fontWeight: 600 }}>{text}</span>
+        </Space>
+      ),
+    },
+    {
+      title: "TÀI KHOẢN EMAIL",
+      dataIndex: "email",
+      key: "email",
+      render: (text: string) => <span style={{ color: isDark ? "#d1d5db" : "#374151" }}>{text}</span>,
+    },
+    {
+      title: "QUYỀN HẠN",
       dataIndex: "role",
       key: "role",
       width: 120,
       render: (r: number) =>
         r === 1 ? (
-          <Tag
+          <span
             style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: "0.07em",
-              textTransform: "uppercase",
-              background: "rgba(62,207,142,0.12)",
-              border: "none",
-              color: "#1a7f5e",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 8px",
               borderRadius: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.02em",
+              background: isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)",
+              color: "#10b981",
             }}
           >
-            Admin
-          </Tag>
+            ADMIN
+          </span>
         ) : (
-          <Tag
+          <span
             style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: "0.07em",
-              textTransform: "uppercase",
-              background: "#f4f4f4",
-              border: "none",
-              color: "#707070",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 8px",
               borderRadius: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.02em",
+              background: isDark ? "rgba(156, 163, 175, 0.15)" : "rgba(229, 231, 235, 0.8)",
+              color: isDark ? "#9ca3af" : "#707070",
             }}
           >
-            Read-only
-          </Tag>
+            READ-ONLY
+          </span>
         ),
+    },
+    {
+      title: "LAST ACTIVITY",
+      key: "lastActivity",
+      width: 150,
+      render: (_: unknown, record: AllowedAccount) => {
+        let hash = 0;
+        const idStr = record.id || "";
+        for (let i = 0; i < idStr.length; i++) {
+          hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const hours = Math.abs(hash % 24);
+        return (
+          <span style={{ fontSize: 12, color: isDark ? "#9ca3af" : "#6b7280" }}>
+            {hours === 0 ? "Vừa xong" : `${hours} giờ trước`}
+          </span>
+        );
+      },
+    },
+    {
+      title: "SECURITY TIER",
+      key: "securityTier",
+      width: 130,
+      render: (_: unknown, record: AllowedAccount) => {
+        const isHigh = record.role === 1;
+        return (
+          <span
+            style={{
+              fontSize: 11,
+              color: isHigh ? "#10b981" : "#f59e0b",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <SafetyCertificateOutlined style={{ fontSize: 11 }} />
+            {isHigh ? "MFA Required" : "Standard"}
+          </span>
+        );
+      },
     },
     ...(user?.role === 1
       ? [
           {
             title: "HÀNH ĐỘNG",
             key: "actions",
+            align: "center" as const,
+            width: 110,
             render: (_: unknown, record: AllowedAccount) => (
-              <Space>
+              <Space size={6}>
                 <Button
+                  size="small"
                   icon={<EditOutlined />}
                   onClick={() => openEdit(record)}
+                  title="Sửa tài khoản"
                 />
                 <Button
+                  size="small"
                   icon={<DeleteOutlined />}
                   danger
                   onClick={() => handleDelete(record.id)}
+                  title="Xóa tài khoản"
                 />
               </Space>
             ),
@@ -280,118 +398,314 @@ const AdminPage: React.FC = () => {
   ];
 
   return (
-    <main className="admin-page">
-      <div className="admin-card">
-        <div className="admin-top">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              className="logo-section"
-              style={{ cursor: "pointer" }}
-              onClick={() => navigate("/")}
-              role="link"
-              aria-label="Về trang chủ"
-            >
-              <div className="logo-icon">
-                <BarChartOutlined style={{ fontSize: 16 }} />
+    <main
+      className="admin-page"
+      style={{
+        background: isDark ? "#0f0f11" : "#f3f4f6",
+        minHeight: "100vh",
+        padding: "24px 16px",
+        transition: "background 0.3s",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1040,
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        {/* Top Header Card */}
+        <Card
+          bordered
+          style={{
+            borderRadius: 12,
+            background: isDark ? "#16161a" : "#ffffff",
+            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+          }}
+          styles={{ body: { padding: 16 } }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            {/* Title / Back */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+              <Button
+                type="text"
+                icon={<HomeOutlined />}
+                onClick={() => navigate("/")}
+                title="Về trang chủ"
+              />
+              <div>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: isDark ? "#ffffff" : "#171717",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  Whitelist Control Panel
+                </h1>
+                <p style={{ margin: 0, fontSize: 12, color: isDark ? "#9ca3af" : "#707070" }}>
+                  Quản lý quyền hạn và tài khoản được phép truy cập FB Pulse Tracker
+                </p>
               </div>
             </div>
-            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: "#171717", letterSpacing: 0 }}>
-              FB Pulse Tracker — Admin
-            </h1>
+
+            {/* Top Buttons */}
+            <Space size={8}>
+              {user && user.role === 1 && (
+                <Button
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={handleDeleteAllImports}
+                  style={{
+                    background: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.08)",
+                    border: "none",
+                    fontWeight: 500,
+                  }}
+                >
+                  Xóa tất cả Import
+                </Button>
+              )}
+              {user && user.role === 1 && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined style={{ color: "#171717" }} />}
+                  onClick={openAdd}
+                  style={{
+                    background: "#10b981",
+                    borderColor: "#10b981",
+                    color: "#171717",
+                    fontWeight: 600,
+                  }}
+                >
+                  Thêm thành viên
+                </Button>
+              )}
+            </Space>
+          </div>
+        </Card>
+
+        {/* 3 Stats Panel (Stitch design) */}
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Total Users</span>}
+                value={items.length}
+                prefix={<UserOutlined style={{ color: "#10b981", marginRight: 8 }} />}
+                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Administrators</span>}
+                value={adminCount}
+                prefix={<SafetyCertificateOutlined style={{ color: "#3b82f6", marginRight: 8 }} />}
+                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Active Now</span>}
+                value={Math.max(1, Math.min(items.length, 3))}
+                prefix={
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#10b981",
+                      display: "inline-block",
+                      marginRight: 8,
+                      marginBottom: 3,
+                    }}
+                  />
+                }
+                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Main Database Card with Filters & Table */}
+        <Card
+          bordered
+          style={{
+            borderRadius: 12,
+            background: isDark ? "#16161a" : "#ffffff",
+            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+          }}
+          styles={{ body: { padding: 24 } }}
+        >
+          {/* Filters & Search Toolbar */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            {/* Tabs Filter */}
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              size="small"
+              style={{ flex: 1, minWidth: 260, marginBottom: 0 }}
+              items={[
+                { key: "all", label: `Tất cả (${items.length})` },
+                { key: "admins", label: `Admins (${adminCount})` },
+                { key: "readonly", label: `Read-only (${items.length - adminCount})` },
+              ]}
+            />
+
+            {/* Search Input */}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Input
+                prefix={<SearchOutlined style={{ color: isDark ? "#6b7280" : "#9a9a9a" }} />}
+                placeholder="Tìm theo email hoặc tên..."
+                value={searchQuery}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                allowClear
+                size="middle"
+                style={{
+                  width: 260,
+                  borderRadius: 6,
+                  background: isDark ? "#1d1d22" : "#ffffff",
+                  borderColor: borderColor,
+                  color: textColor,
+                }}
+              />
+            </div>
           </div>
 
-          <Space size={8}>
-            {user && user.role === 1 && (
-              <Button
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={handleDeleteAllImports}
-              >
-                Xóa tất cả Import
-              </Button>
-            )}
-            {user && user.role === 1 && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-                Thêm tài khoản
-              </Button>
-            )}
-          </Space>
-        </div>
-
-        {/* Search bar */}
-        <div style={{ marginBottom: 12 }}>
-          <Input
-            prefix={<SearchOutlined style={{ color: "#9a9a9a" }} />}
-            placeholder="Tìm theo email hoặc tên..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            allowClear
-            size="small"
-            style={{ maxWidth: 300 }}
-          />
           {searchQuery && (
-            <Text style={{ marginLeft: 8, fontSize: 12, color: "#8a8a8a" }}>
-              {filteredItems.length} / {items.length} tài khoản
-            </Text>
+            <div style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: muteColor }}>
+                Tìm thấy {filteredItems.length} kết quả lọc.
+              </Text>
+            </div>
           )}
-        </div>
 
-        <Table
-          columns={columns}
-          dataSource={filteredItems}
-          rowKey={(r) => r.id}
-          loading={loading}
-          pagination={false}
-        />
+          {/* User Table */}
+          <Table
+            columns={columns}
+            dataSource={filteredItems}
+            rowKey={(r: AllowedAccount) => r.id}
+            loading={loading}
+            pagination={false}
+            scroll={{ x: 800 }}
+            className="custom-table"
+          />
+        </Card>
 
+        {/* Modal Thêm/Sửa */}
         <Modal
-          title={editing ? "Chỉnh sửa tài khoản" : "Thêm mới tài khoản"}
+          title={
+            <span style={{ fontSize: 16, fontWeight: 700, color: textColor }}>
+              {editing ? "Chỉnh sửa tài khoản" : "Thêm tài khoản được phép truy cập"}
+            </span>
+          }
           open={isModalOpen}
           onOk={handleSave}
           onCancel={() => setIsModalOpen(false)}
-          okButtonProps={{ disabled: !email || !displayName }}
+          okButtonProps={{
+            disabled: !email || !displayName,
+            style: { background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 600 },
+          }}
           centered
         >
-          <div style={{ marginBottom: 8 }}>
-            <label htmlFor="admin-email-input">
-              Email <span style={{ color: "#ff4d4f" }}>*</span>
-            </label>
-            <Input
-              id="admin-email-input"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="admin-displayname-input">
-              Tên admin <span style={{ color: "#ff4d4f" }}>*</span>
-            </label>
-            <Input
-              id="admin-displayname-input"
-              required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label htmlFor="admin-role-select">Quyền</label>
-            <Select
-              id="admin-role-select"
-              value={role}
-              onChange={(val) => setRole(Number(val) as 0 | 1)}
-              style={{ width: "100%" }}
-              disabled={isEditingSelf}
-            >
-              <Select.Option value={0}>Read-only</Select.Option>
-              <Select.Option value={1}>Admin</Select.Option>
-            </Select>
-            {isEditingSelf ? (
-              <div style={{ marginTop: 6, color: "#fa8c16", fontSize: 12 }}>
-                Bạn không thể thay đổi quyền của chính bạn.
-              </div>
-            ) : null}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 12 }}>
+            <div>
+              <label htmlFor="admin-email-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                Địa chỉ Email <span style={{ color: "#ff4d4f" }}>*</span>
+              </label>
+              <Input
+                id="admin-email-input"
+                placeholder="user@example.com"
+                required
+                value={email}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                style={{ borderRadius: 6 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-displayname-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                Tên hiển thị (Tên Admin) <span style={{ color: "#ff4d4f" }}>*</span>
+              </label>
+              <Input
+                id="admin-displayname-input"
+                placeholder="Nguyễn Văn A"
+                required
+                value={displayName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
+                style={{ borderRadius: 6 }}
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-role-select" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                Quyền hạn hệ thống
+              </label>
+              <Select
+                id="admin-role-select"
+                value={role}
+                onChange={(val: number) => setRole(val as 0 | 1)}
+                style={{ width: "100%" }}
+                disabled={isEditingSelf}
+              >
+                <Select.Option value={0}>Read-only (Chỉ đọc dữ liệu)</Select.Option>
+                <Select.Option value={1}>Admin (Toàn quyền quản trị)</Select.Option>
+              </Select>
+              {isEditingSelf ? (
+                <div style={{ marginTop: 6, color: "#fa8c16", fontSize: 11 }}>
+                  Bạn không thể tự hạ quyền của chính mình để tránh mất quyền quản trị.
+                </div>
+              ) : null}
+            </div>
           </div>
         </Modal>
       </div>

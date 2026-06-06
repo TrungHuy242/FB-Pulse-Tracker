@@ -8,11 +8,11 @@
  *
  * Bridge với GPM Automate qua Excel/CSV (không gọi Facebook, không gọi GPM API).
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Tabs, Table, Button, Modal, Input, Select, Form, Tag, Space,
   message, Tooltip, Upload, Dropdown, Empty, Skeleton, Progress,
-  Typography, Popconfirm,
+  Typography, Popconfirm, theme as antdTheme,
 } from "antd";
 import {
   PlusOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined,
@@ -21,11 +21,12 @@ import {
 } from "@ant-design/icons";
 import { AppLayout } from "@/layouts/AppLayout";
 import {
-  getCampaigns, createCampaign, updateCampaign, deleteCampaign,
+  createCampaign, updateCampaign, deleteCampaign,
   getProfiles, createProfile, updateProfile, deleteProfile, upsertProfiles,
   getTasksByCampaign, createTasksBulk, deleteTask,
   markTasksExported, applyTaskReport,
-  getSeedingComments, createSeedingComment, updateSeedingComment, deleteSeedingComment,
+  createSeedingComment, updateSeedingComment, deleteSeedingComment,
+  subscribeCampaigns, subscribeProfiles, subscribeCommentLibrary,
   CAMPAIGN_STATUS_LABELS, TASK_STATUS_LABELS, ACTION_LABELS, PROFILE_STATUS_LABELS,
 } from "@/service/seedingService";
 import {
@@ -61,16 +62,18 @@ const PROFILE_STATUS_COLOR: Record<string, string> = {
 function StatCard({
   label, value, accent = false, color,
 }: { label: string; value: number | string; accent?: boolean; color?: string }) {
+  const { token } = antdTheme.useToken();
   return (
     <div style={{
-      background: "#ffffff", border: "1px solid #dfdfdf",
-      borderLeft: `3px solid ${accent ? "#3ecf8e" : (color ?? "#dfdfdf")}`,
+      background: token.colorBgContainer,
+      border: `1px solid ${token.colorBorderSecondary}`,
+      borderLeft: `3px solid ${accent ? "#3ecf8e" : (color ?? token.colorBorderSecondary)}`,
       borderRadius: 8, padding: "12px 16px", flex: 1, minWidth: 100,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#6b6b6b", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: token.colorTextSecondary, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 4 }}>
         {label}
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#171717", letterSpacing: "-0.02em", fontFamily: "ui-monospace, monospace" }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: token.colorText, letterSpacing: "-0.02em", fontFamily: "ui-monospace, monospace" }}>
         {value}
       </div>
     </div>
@@ -82,6 +85,7 @@ function StatCard({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
+  const { token } = antdTheme.useToken();
   const [campaigns, setCampaigns] = useState<SeedingCampaign[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,15 +112,15 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
   const [reportFile, setReportFile] = useState<File | null>(null);
   const [importingSaving, setImportingSaving] = useState(false);
 
-  const loadCampaigns = useCallback(async () => {
+  // FIX #12: Dùng onSnapshot để subscribe realtime thay vì getDocs one-shot
+  useEffect(() => {
     setLoading(true);
-    try {
-      setCampaigns(await getCampaigns());
-    } catch { message.error("Không tải được campaigns"); }
-    finally { setLoading(false); }
+    const unsubscribe = subscribeCampaigns((data) => {
+      setCampaigns(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
-
-  useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
 
   const openTaskManager = async (campaign: SeedingCampaign) => {
     setSelectedCampaign(campaign);
@@ -238,7 +242,6 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
         message.success("Đã tạo campaign");
       }
       setCampaignFormOpen(false);
-      await loadCampaigns();
     } catch { message.error("Lưu thất bại"); }
     finally { setSaving(false); }
   };
@@ -247,7 +250,6 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
     try {
       await deleteCampaign(id);
       message.success("Đã xóa campaign");
-      await loadCampaigns();
     } catch { message.error("Xóa thất bại"); }
   };
 
@@ -267,6 +269,7 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
     {
       title: "Tên chiến dịch",
       dataIndex: "name",
+      sorter: (a: SeedingCampaign, b: SeedingCampaign) => a.name.localeCompare(b.name, "vi"),
       render: (name: string, r: SeedingCampaign) => (
         <div>
           <div style={{ fontWeight: 600, color: "#171717", fontSize: 13 }}>{name}</div>
@@ -280,6 +283,7 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
       title: "Trạng thái",
       dataIndex: "status",
       width: 130,
+      sorter: (a: SeedingCampaign, b: SeedingCampaign) => a.status.localeCompare(b.status),
       render: (s: CampaignStatus) => (
         <Tag color={CAMPAIGN_STATUS_COLOR[s]} style={{ fontSize: 11, borderRadius: 4, border: "none" }}>
           {CAMPAIGN_STATUS_LABELS[s]}
@@ -385,7 +389,7 @@ function CampaignsTab({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       {/* Campaign table */}
-      <div style={{ background: "#fff", border: "1px solid #dfdfdf", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 12, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: 24 }}><Skeleton active paragraph={{ rows: 4 }} /></div>
         ) : campaigns.length === 0 ? (
@@ -542,14 +546,15 @@ function ProfilesTab({ isAdmin }: { isAdmin: boolean }) {
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
 
-  const load = useCallback(async () => {
+  // FIX #12: Subscribe realtime
+  useEffect(() => {
     setLoading(true);
-    try { setProfiles(await getProfiles()); }
-    catch { message.error("Không tải được profiles"); }
-    finally { setLoading(false); }
+    const unsubscribe = subscribeProfiles((data) => {
+      setProfiles(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
-
-  useEffect(() => { void load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -580,13 +585,12 @@ function ProfilesTab({ isAdmin }: { isAdmin: boolean }) {
         message.success("Đã thêm profile");
       }
       setFormOpen(false);
-      await load();
     } catch { message.error("Lưu thất bại"); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
-    try { await deleteProfile(id); message.success("Đã xóa"); await load(); }
+    try { await deleteProfile(id); message.success("Đã xóa"); }
     catch { message.error("Xóa thất bại"); }
   };
 
@@ -605,7 +609,6 @@ function ProfilesTab({ isAdmin }: { isAdmin: boolean }) {
       })));
       message.success(`Đã import/cập nhật ${count} profiles`);
       setImportOpen(false);
-      await load();
     } catch (e) {
       message.error(`Import thất bại: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setImporting(false); }
@@ -728,14 +731,15 @@ function CommentLibraryTab({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
 
-  const load = useCallback(async () => {
+  // FIX #12: Subscribe realtime
+  useEffect(() => {
     setLoading(true);
-    try { setComments(await getSeedingComments()); }
-    catch { message.error("Không tải được thư viện"); }
-    finally { setLoading(false); }
+    const unsubscribe = subscribeCommentLibrary((data) => {
+      setComments(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
-
-  useEffect(() => { void load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -757,13 +761,12 @@ function CommentLibraryTab({ isAdmin }: { isAdmin: boolean }) {
         message.success("Đã thêm comment");
       }
       setFormOpen(false);
-      await load();
     } catch { message.error("Lưu thất bại"); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
-    try { await deleteSeedingComment(id); await load(); message.success("Đã xóa"); }
+    try { await deleteSeedingComment(id); message.success("Đã xóa"); }
     catch { message.error("Xóa thất bại"); }
   };
 

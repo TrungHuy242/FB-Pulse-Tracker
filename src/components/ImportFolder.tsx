@@ -36,6 +36,7 @@ import {
   computeTotalChunks,
   normalizeAccountName,
   buildImportSummaryLabel,
+  detectMultiProfile,
   type ImportMode,
 } from "@/utils/importUtils";
 
@@ -321,18 +322,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         }
 
         // ── Phát hiện ZIP đa-profile ──
-        // Case 1: root/profileName/category/file.json (depth >= 4) — wrapper ZIP
-        // Case 2: profileA/category/file.json, profileB/... (nhiều root khác nhau)
-        const hasDeepStructure = parsedFiles.some(
-          (f) => f.name.split("/").filter(Boolean).length >= 4
-        );
-        const distinctRoots = new Set(
-          parsedFiles.map((f) => f.name.split("/").filter(Boolean)[0]).filter(Boolean)
-        );
-        // profileIndex: parts index chứa tên profile
-        // Case 1: parts[1]; Case 2: parts[0]
-        const isMultiProfile = hasDeepStructure || distinctRoots.size > 1;
-        const profilePartIndex = hasDeepStructure ? 1 : 0;
+        const { isMultiProfile, profilePartIndex } = detectMultiProfile(parsedFiles);
 
         if (isMultiProfile) {
           // Nhóm parsedFiles theo tên profile

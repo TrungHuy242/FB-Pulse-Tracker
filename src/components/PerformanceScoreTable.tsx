@@ -5,7 +5,7 @@
  * Sort: điểm cao nhất lên đầu.
  * Dữ liệu từ usePerformanceScore (không cần Firebase call thêm).
  */
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, Table, Tag, Skeleton, Empty } from "antd";
 import { TrophyOutlined } from "@ant-design/icons";
 import {
@@ -14,6 +14,7 @@ import {
   type PerformanceGrade,
 } from "@/hooks/usePerformanceScore";
 import { useImportData } from "@/contexts/ImportDataContext";
+import type { StatsFilter } from "@/types";
 
 // ── Grade styling ─────────────────────────────────────────────────────────────
 
@@ -53,9 +54,29 @@ function ScoreBar({ score }: { score: number }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const PerformanceScoreTable: React.FC = () => {
+interface PerformanceScoreTableProps {
+  filter?: StatsFilter;
+}
+
+const PerformanceScoreTable: React.FC<PerformanceScoreTableProps> = ({ filter }) => {
   const { imports, loading } = useImportData();
-  const scores = usePerformanceScore(imports);
+
+  // Lọc imports theo filter (ngày + tên tài khoản) để đồng bộ với Analytics
+  const filteredImports = useMemo(() => {
+    if (!filter) return imports;
+    return imports.filter((imp) => {
+      const importedAt = imp.importedAt?.toDate?.();
+      if (filter.from && importedAt && importedAt < filter.from) return false;
+      if (filter.to && importedAt && importedAt > filter.to) return false;
+      if (filter.name) {
+        const names = Array.isArray(filter.name) ? filter.name : [filter.name];
+        if (names.length > 0 && !names.includes(imp.accountName)) return false;
+      }
+      return true;
+    });
+  }, [imports, filter]);
+
+  const scores = usePerformanceScore(filteredImports);
 
   const columns = [
     {

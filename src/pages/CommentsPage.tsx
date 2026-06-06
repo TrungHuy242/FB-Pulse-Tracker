@@ -7,7 +7,7 @@
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import {
   Input, Button, Select, DatePicker, Table, Tag, Space, Tooltip,
-  Row, Col, Skeleton, Empty, Typography, Dropdown,
+  Row, Col, Skeleton, Empty, Typography, Dropdown, Alert, theme, Modal,
 } from "antd";
 import {
   SearchOutlined, ClearOutlined, CommentOutlined, DownloadOutlined,
@@ -25,6 +25,16 @@ import {
   type AiSentimentResponse,
   type AiSentimentResult,
 } from "@/service/aiSentimentService";
+import {
+  extractSeoKeywordsWithAI,
+  scoreLeadsWithAI,
+  classifyIntentWithAI,
+  generateSeedingIdeasWithAI,
+  type SeoKeyword,
+  type LeadScore,
+  type IntentResult,
+  type SeedingIdea,
+} from "@/service/aiExtendedService";
 import type { RichComment } from "@/hooks/useAllComments";
 
 // Lazy-load chart components to keep initial bundle lean
@@ -37,8 +47,8 @@ const SentimentChart = lazy(() =>
 
 const { Text } = Typography;
 const PAGE_SIZE = 25;
-/** Max comments sent to AI per analysis request */
-const AI_BATCH_LIMIT = 200;
+/** Max comments sent to AI per analysis request (giới hạn Cloud Function analyzeSentiment là 50) */
+const AI_BATCH_LIMIT = 50;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -278,6 +288,8 @@ function AiResultsPanel({ results, onClose }: AiResultsPanelProps) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CommentsPage() {
+  const { token } = theme.useToken();
+
   // Filter state
   const [keyword, setKeyword] = useState("");
   const [authorInput, setAuthorInput] = useState("");
@@ -298,12 +310,28 @@ export default function CommentsPage() {
   // AI analysis state
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AiSentimentResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // AI Extended states
+  const [seoResults, setSeoResults] = useState<SeoKeyword[] | null>(null);
+  const [seoModalOpen, setSeoModalOpen] = useState(false);
+
+  const [leadResults, setLeadResults] = useState<LeadScore[] | null>(null);
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+
+  const [intentResults, setIntentResults] = useState<IntentResult[] | null>(null);
+  const [intentModalOpen, setIntentModalOpen] = useState(false);
+
+  const [ideasResults, setIdeasResults] = useState<SeedingIdea[] | null>(null);
+  const [ideasModalOpen, setIdeasModalOpen] = useState(false);
+
+  const [extendedAiLoading, setExtendedAiLoading] = useState<string | null>(null);
 
   useEffect(() => {
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
-  const { comments, loading, total } = useAllComments(activeFilter);
+  const { comments, loading, total, hasMore } = useAllComments(activeFilter);
 
   // Group options derived from loaded data
   const groupOptions = useMemo(() => {
@@ -314,9 +342,15 @@ export default function CommentsPage() {
     return Array.from(groups).sort();
   }, [comments]);
 
+  const handleClearAi = useCallback(() => {
+    setAiResults(null);
+    setAiError(null);
+  }, []);
+
   const handleSearch = useCallback(() => {
     setPage(1);
     setAiResults(null); // reset AI panel when filter changes
+    setAiError(null);
     setActiveFilter({
       keyword: keyword.trim() || undefined,
       author: authorInput.trim() || undefined,
@@ -339,6 +373,7 @@ export default function CommentsPage() {
     setPage(1);
     setActiveFilter({});
     setAiResults(null);
+    setAiError(null);
   }, []);
 
   // Client-side sentiment filter (applied after Firestore fetch)
@@ -365,6 +400,7 @@ export default function CommentsPage() {
     if (sentimentFiltered.length === 0) return;
     setAiLoading(true);
     setAiResults(null);
+    setAiError(null);
     try {
       const batch = sentimentFiltered.slice(0, AI_BATCH_LIMIT).map((c, i) => ({
         id: `${c.importId ?? i}-${c.commentTime ?? i}`,
@@ -372,10 +408,71 @@ export default function CommentsPage() {
       }));
       const result = await analyzeCommentsWithAI(batch);
       setAiResults(result);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Phân tích AI thất bại. Vui lòng thử lại.";
+      setAiError(msg);
     } finally {
       setAiLoading(false);
     }
   }, [sentimentFiltered]);
+
+  // AI Extended actions
+  const handleAiAction = useCallback(async (key: string) => {
+    if (sentimentFiltered.length === 0) return;
+    setExtendedAiLoading(key);
+    setAiError(null);
+
+    const accountName = selectedAccount || (sentimentFiltered[0]?.accountName);
+
+    try {
+      if (key === "sentiment") {
+        await handleAiAnalyze();
+      } else if (key === "seo") {
+        const batch = sentimentFiltered.slice(0, 500).map((c, i) => ({
+          id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+          content: c.content ?? "",
+        }));
+        const res = await extractSeoKeywordsWithAI(batch, accountName);
+        if (res.error) throw new Error(res.error);
+        setSeoResults(res.keywords);
+        setSeoModalOpen(true);
+      } else if (key === "leads") {
+        const batch = sentimentFiltered.slice(0, 200).map((c, i) => ({
+          id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+          content: c.content ?? "",
+          authorName: c.authorName ?? "",
+        }));
+        const res = await scoreLeadsWithAI(batch);
+        if (res.error) throw new Error(res.error);
+        const sortedLeads = [...res.leads].sort((a, b) => b.score - a.score);
+        setLeadResults(sortedLeads);
+        setLeadModalOpen(true);
+      } else if (key === "intent") {
+        const batch = sentimentFiltered.slice(0, 100).map((c, i) => ({
+          id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+          content: c.content ?? "",
+        }));
+        const res = await classifyIntentWithAI(batch);
+        if (res.error) throw new Error(res.error);
+        setIntentResults(res.results);
+        setIntentModalOpen(true);
+      } else if (key === "ideas") {
+        const batch = sentimentFiltered.slice(0, 500).map((c, i) => ({
+          id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+          content: c.content ?? "",
+        }));
+        const res = await generateSeedingIdeasWithAI(batch, accountName);
+        if (res.error) throw new Error(res.error);
+        setIdeasResults(res.ideas);
+        setIdeasModalOpen(true);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Thao tác AI thất bại.";
+      setAiError(msg);
+    } finally {
+      setExtendedAiLoading(null);
+    }
+  }, [sentimentFiltered, selectedAccount, handleAiAnalyze]);
 
   // ── Export menu ────────────────────────────────────────────────────────────
 
@@ -392,6 +489,12 @@ export default function CommentsPage() {
     if (key === "json")  exportCommentsToJSON(sentimentFiltered);
     if (key === "excel") exportCommentsToXLSX(sentimentFiltered);
   }, [sentimentFiltered]);
+
+  // ── AI Intent result map (id → intent) for per-row badges ─────────────────
+  const aiIntentMap = useMemo<Map<string, IntentResult>>(() => {
+    if (!intentResults) return new Map();
+    return new Map(intentResults.map((r) => [r.id, r]));
+  }, [intentResults]);
 
   // ── AI result map (id → result) for per-row badges ────────────────────────
 
@@ -480,6 +583,38 @@ export default function CommentsPage() {
           </Tag>
         );
       },
+    },
+    {
+      title: "Ý định (AI)",
+      key: "intent",
+      width: 120,
+      render: (_: any, record: RichComment, idx: number) => {
+        const aiKey = `${record.importId ?? idx}-${record.commentTime ?? idx}`;
+        const intentRes = aiIntentMap.get(aiKey);
+        if (!intentRes) return <span style={{ color: "#aaa" }}>—</span>;
+
+        const intentCfg: Record<string, { label: string; color: string; bg: string }> = {
+          buy: { label: "Mua hàng", color: "#1a7f5e", bg: "rgba(62,207,142,0.10)" },
+          inquiry: { label: "Hỏi đáp", color: "#2563eb", bg: "rgba(37,99,235,0.08)" },
+          complaint: { label: "Khiếu nại", color: "#dc2626", bg: "rgba(220,38,38,0.08)" },
+          compliment: { label: "Khen ngợi", color: "#d97706", bg: "rgba(217,119,6,0.08)" },
+          other: { label: "Khác", color: "#707070", bg: "#f4f4f4" },
+        };
+
+        const cfg = intentCfg[intentRes.intent] || { label: intentRes.intent, color: "#707070", bg: "#f4f4f4" };
+
+        return (
+          <Tooltip title={`Độ tin cậy: ${intentRes.confidence}`}>
+            <Tag style={{
+              background: cfg.bg, border: "none",
+              color: cfg.color, borderRadius: 4,
+              fontSize: 11, fontWeight: 600,
+            }}>
+              {cfg.label}
+            </Tag>
+          </Tooltip>
+        );
+      }
     },
     {
       title: "Nhóm",
@@ -596,17 +731,29 @@ export default function CommentsPage() {
         Xóa
       </Button>
 
-      {/* AI Analysis button */}
-      <Button
-        size="small"
-        icon={<RobotOutlined />}
-        loading={aiLoading}
+      {/* AI Extended Tools Dropdown */}
+      <Dropdown
+        menu={{
+          items: [
+            { key: "sentiment", label: "Phân tích cảm xúc AI (Max 50)", icon: <RobotOutlined /> },
+            { key: "seo", label: "Trích xuất từ khóa SEO (Max 500)", icon: <SearchOutlined /> },
+            { key: "leads", label: "Chấm điểm Lead tiềm năng (Max 200)", icon: <CheckCircleOutlined /> },
+            { key: "intent", label: "Phân loại ý định (Max 100)", icon: <ExclamationCircleOutlined /> },
+            { key: "ideas", label: "Ý tưởng Seeding (Max 500)", icon: <CommentOutlined /> },
+          ],
+          onClick: ({ key }) => handleAiAction(key),
+        }}
         disabled={loading || sentimentFiltered.length === 0}
-        onClick={handleAiAnalyze}
-        title={`Phân tích cảm xúc AI (tối đa ${AI_BATCH_LIMIT} bình luận)`}
+        trigger={["click"]}
       >
-        Phân tích AI
-      </Button>
+        <Button
+          size="small"
+          icon={<RobotOutlined />}
+          loading={aiLoading || extendedAiLoading !== null}
+        >
+          Công cụ AI <DownOutlined style={{ fontSize: 10 }} />
+        </Button>
+      </Dropdown>
 
       {/* Export dropdown: CSV + JSON */}
       <Dropdown
@@ -630,6 +777,16 @@ export default function CommentsPage() {
 
   return (
     <AppLayout title="Bình luận" topBar={topBar}>
+      {/* Giới hạn load cảnh báo */}
+      {hasMore && (
+        <Alert
+          type="warning"
+          message={`Đã hiển thị tối đa 5.000 bình luận đầu tiên. Dùng bộ lọc để thu hẹp kết quả.`}
+          showIcon
+          style={{ marginBottom: 12 }}
+        />
+      )}
+
       {/* Stats summary bar */}
       <div style={{
         display: "flex", alignItems: "center", gap: 16,
@@ -667,9 +824,21 @@ export default function CommentsPage() {
         )}
       </div>
 
+      {/* AI error panel */}
+      {aiError && (
+        <Alert
+          type="error"
+          message="Phân tích AI thất bại"
+          description={aiError}
+          closable
+          onClose={handleClearAi}
+          style={{ marginBottom: 12 }}
+        />
+      )}
+
       {/* AI results panel — visible after analysis */}
       {aiResults && (
-        <AiResultsPanel results={aiResults} onClose={() => setAiResults(null)} />
+        <AiResultsPanel results={aiResults} onClose={handleClearAi} />
       )}
 
       <Row gutter={[16, 16]}>
@@ -744,6 +913,247 @@ export default function CommentsPage() {
           </div>
         </Col>
       </Row>
+
+      {/* ── SEO Keywords Modal ── */}
+      <Modal
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <SearchOutlined style={{ color: "#2563eb" }} />
+            <span>Từ khóa SEO hàng đầu (Trích xuất bằng AI)</span>
+          </div>
+        }
+        open={seoModalOpen}
+        onCancel={() => setSeoModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setSeoModalOpen(false)}>Đóng</Button>
+        ]}
+        width={600}
+      >
+        <Table<SeoKeyword>
+          dataSource={seoResults || []}
+          rowKey="keyword"
+          pagination={{ pageSize: 10, size: "small" }}
+          size="small"
+          columns={[
+            {
+              title: "Từ khóa",
+              dataIndex: "keyword",
+              key: "keyword",
+              render: (text) => <Text strong>{text}</Text>
+            },
+            {
+              title: "Tần suất",
+              dataIndex: "frequency",
+              key: "frequency",
+              sorter: (a, b) => a.frequency - b.frequency,
+              defaultSortOrder: "descend",
+              width: 120,
+            },
+            {
+              title: "Độ liên quan",
+              dataIndex: "relevance",
+              key: "relevance",
+              width: 140,
+              render: (v) => {
+                const relevanceCfg = {
+                  high: { label: "Cao", color: "#dc2626", bg: "rgba(220,38,38,0.08)" },
+                  medium: { label: "Vừa", color: "#d97706", bg: "rgba(217,119,6,0.08)" },
+                  low: { label: "Thấp", color: "#1a7f5e", bg: "rgba(62,207,142,0.08)" },
+                };
+                const cfg = relevanceCfg[v as keyof typeof relevanceCfg] || { label: v, color: "#707070", bg: "#f4f4f4" };
+                return (
+                  <Tag style={{ background: cfg.bg, color: cfg.color, border: "none", borderRadius: 4, fontWeight: 600 }}>
+                    {cfg.label}
+                  </Tag>
+                );
+              }
+            }
+          ]}
+        />
+      </Modal>
+
+      {/* ── Leads Scoring Modal ── */}
+      <Modal
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <CheckCircleOutlined style={{ color: "#1a7f5e" }} />
+            <span>Đánh giá & Chấm điểm Lead tiềm năng</span>
+          </div>
+        }
+        open={leadModalOpen}
+        onCancel={() => setLeadModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setLeadModalOpen(false)}>Đóng</Button>
+        ]}
+        width={750}
+      >
+        <Table<LeadScore>
+          dataSource={leadResults || []}
+          rowKey={(r, i) => `${r.authorName}-${i}`}
+          pagination={{ pageSize: 10, size: "small" }}
+          size="small"
+          columns={[
+            {
+              title: "Tác giả",
+              dataIndex: "authorName",
+              key: "authorName",
+              render: (text) => <Text strong>{text || "Ẩn danh"}</Text>
+            },
+            {
+              title: "Điểm Lead",
+              dataIndex: "score",
+              key: "score",
+              sorter: (a, b) => a.score - b.score,
+              width: 120,
+              render: (v) => {
+                let color = "#1a7f5e";
+                let bg = "rgba(62,207,142,0.10)";
+                if (v < 50) {
+                  color = "#707070";
+                  bg = "#f4f4f4";
+                } else if (v < 80) {
+                  color = "#d97706";
+                  bg = "rgba(217,119,6,0.10)";
+                }
+                return (
+                  <Tag style={{ background: bg, color, border: "none", borderRadius: 4, fontWeight: 700 }}>
+                    {v} / 100
+                  </Tag>
+                );
+              }
+            },
+            {
+              title: "Ý định",
+              dataIndex: "intent",
+              key: "intent",
+              width: 150,
+            },
+            {
+              title: "Tín hiệu",
+              dataIndex: "signals",
+              key: "signals",
+              render: (signals: string[]) => (
+                <Space size={4} wrap>
+                  {(signals || []).map((s, i) => (
+                    <Tag key={i} style={{ borderRadius: 4, fontSize: 10 }}>{s}</Tag>
+                  ))}
+                </Space>
+              )
+            }
+          ]}
+        />
+      </Modal>
+
+      {/* ── Intent Classification Modal ── */}
+      <Modal
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ExclamationCircleOutlined style={{ color: "#d97706" }} />
+            <span>Kết quả phân loại ý định (AI Intent)</span>
+          </div>
+        }
+        open={intentModalOpen}
+        onCancel={() => setIntentModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setIntentModalOpen(false)}>Đóng</Button>
+        ]}
+        width={650}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary">Phân phối tỷ lệ ý định trên {intentResults?.length} bình luận đã phân tích:</Text>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+            {(() => {
+              const counts = { buy: 0, inquiry: 0, complaint: 0, compliment: 0, other: 0 };
+              intentResults?.forEach((r) => {
+                if (r.intent in counts) counts[r.intent]++;
+              });
+              const totalProcessed = intentResults?.length || 1;
+              const entries = [
+                { key: "buy", label: "Mua hàng (Buy)", color: "#1a7f5e" },
+                { key: "inquiry", label: "Hỏi đáp (Inquiry)", color: "#2563eb" },
+                { key: "compliment", label: "Khen ngợi (Compliment)", color: "#d97706" },
+                { key: "complaint", label: "Khiếu nại (Complaint)", color: "#dc2626" },
+                { key: "other", label: "Khác (Other)", color: "#707070" },
+              ];
+              return entries.map(({ key, label, color }) => {
+                const count = counts[key as keyof typeof counts] || 0;
+                const pct = Math.round((count / totalProcessed) * 100);
+                return (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 12, width: 140, flexShrink: 0 }}>{label}</span>
+                    <div style={{ flex: 1, height: 8, background: "#ebebeb", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4 }} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, width: 40, textAlign: "right" }}>{pct}%</span>
+                    <span style={{ fontSize: 11, color: "#9a9a9a", width: 40 }}>({count})</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+        <Alert
+          type="info"
+          message="Nhãn ý định đã được cập nhật trực tiếp vào danh sách bình luận bên dưới."
+          showIcon
+          style={{ marginTop: 16 }}
+        />
+      </Modal>
+
+      {/* ── Seeding Ideas Modal ── */}
+      <Modal
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <CommentOutlined style={{ color: "#d97706" }} />
+            <span>Ý tưởng Content Seeding được đề xuất</span>
+          </div>
+        }
+        open={ideasModalOpen}
+        onCancel={() => setIdeasModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setIdeasModalOpen(false)}>Đóng</Button>
+        ]}
+        width={800}
+      >
+        <div style={{ maxHeight: "60vh", overflowY: "auto", paddingRight: 8 }}>
+          <Row gutter={[16, 16]}>
+            {(ideasResults || []).map((idea, idx) => {
+              const formatCfg = {
+                post: { label: "Bài viết", color: "blue" },
+                video: { label: "Video", color: "purple" },
+                reel: { label: "Reel", color: "magenta" },
+                story: { label: "Story", color: "orange" },
+              };
+              const cfg = formatCfg[idea.format as keyof typeof formatCfg] || { label: idea.format, color: "default" };
+              return (
+                <Col xs={24} sm={12} key={idx}>
+                  <div style={{
+                    padding: 16,
+                    background: token.colorBgLayout,
+                    border: `1px solid ${token.colorBorderSecondary}`,
+                    borderRadius: 8,
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between"
+                  }}>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                        <Text strong style={{ fontSize: 14 }}>{idea.title}</Text>
+                        <Tag color={cfg.color}>{cfg.label}</Tag>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#d97706", marginBottom: 8, fontWeight: 500 }}>
+                        Góc tiếp cận: {idea.angle}
+                      </div>
+                      <p style={{ fontSize: 12, color: token.colorTextDescription, margin: 0 }}>{idea.description}</p>
+                    </div>
+                  </div>
+                </Col>
+              );
+            })}
+          </Row>
+        </div>
+      </Modal>
     </AppLayout>
   );
 }

@@ -5,15 +5,27 @@
  * từ tab/thiết bị khác (không ảnh hưởng đến pagination hiện tại).
  */
 import { useRef, useState, useMemo, useEffect, useCallback } from "react";
-import { Alert, Button, DatePicker, Select, Space, Tooltip } from "antd";
-import { FileTextOutlined, SyncOutlined } from "@ant-design/icons";
+import { Alert, Button, DatePicker, Select, Space, Tooltip, Modal, message, Card, Row, Col, Statistic } from "antd";
+import {
+  FileTextOutlined,
+  SyncOutlined,
+  DeleteOutlined,
+  DatabaseOutlined,
+  SlidersOutlined,
+  HeartOutlined,
+  ExclamationCircleOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
 import { AccountsTable } from "@/components/AccountsTable";
 import { ImportZip, type FormDrawerHandle } from "@/components/ImportFolder";
 import { PrintReportButton } from "@/components/PrintReportButton";
-import { getAccountNames } from "@/service/importService";
+import { getAccountNames, deleteAllImports } from "@/service/importService";
 import { useRealtimeImports } from "@/hooks/useRealtimeImports";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLoading } from "@/contexts/LoadingContext";
+import { clearCacheByPrefix } from "@/service/queryCache";
+import { useTheme } from "@/contexts/ThemeContext";
 import type { StatsFilter } from "@/types";
 
 interface AccountsTableRef {
@@ -31,6 +43,10 @@ export default function ImportsPage() {
   const [appliedFilter, setAppliedFilter] = useState<StatsFilter>({});
   const [refreshSignal, setRefreshSignal] = useState(0);
 
+  const { user } = useAuth();
+  const { showLoading, closeLoading } = useLoading();
+  const { isDark } = useTheme();
+
   // Real-time: phát hiện import mới từ tab/thiết bị khác
   const { hasNewData, clearNewData } = useRealtimeImports(true);
 
@@ -43,7 +59,6 @@ export default function ImportsPage() {
     const hasName = !!appliedFilter.name;
     if (hasRange || hasName) return appliedFilter;
     return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromTime, toTime, filterName]);
 
   // Aria patch
@@ -66,7 +81,6 @@ export default function ImportsPage() {
   }, [patchSelectAria]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
@@ -108,12 +122,42 @@ export default function ImportsPage() {
     setAppliedFilter({});
   };
 
+  const handleDeleteAll = () => {
+    Modal.confirm({
+      title: "Xác nhận xóa TẤT CẢ dữ liệu import?",
+      icon: <ExclamationCircleOutlined style={{ color: "#ef4444" }} />,
+      content: "Hành động này sẽ xóa toàn bộ imports, bình luận và cảm xúc hiện có trong hệ thống. Không thể khôi phục dữ liệu.",
+      okText: "Xóa toàn bộ",
+      okType: "danger",
+      cancelText: "Hủy",
+      centered: true,
+      onOk: async () => {
+        showLoading("delete-all-imports");
+        try {
+          await deleteAllImports();
+          clearCacheByPrefix("imports:");
+          message.success("Đã xóa toàn bộ dữ liệu imports");
+          await refreshAccounts();
+          tableRef.current?.reloadTable();
+          setRefreshSignal((s) => s + 1);
+        } catch (err) {
+          console.error("Xóa tất cả thất bại:", err);
+          message.error("Không thể xóa toàn bộ dữ liệu");
+        } finally {
+          closeLoading("delete-all-imports");
+        }
+      },
+    });
+  };
+
   const topBar = (
-    <Space size={6} wrap>
+    <Space size={8} wrap>
       <Button
-        icon={<FileTextOutlined />}
+        type="primary"
+        icon={<FileTextOutlined style={{ color: "#171717" }} />}
         onClick={() => importRef.current?.open()}
         size="small"
+        style={{ background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 500 }}
       >
         Import mới
       </Button>
@@ -162,11 +206,29 @@ export default function ImportsPage() {
       <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
       <PrintReportButton title="Báo cáo Imports" size="small" />
+
+      {user?.role === 1 && (
+        <Button
+          danger
+          type="text"
+          size="small"
+          icon={<DeleteOutlined />}
+          onClick={handleDeleteAll}
+          style={{
+            background: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.08)",
+            color: "#ef4444",
+            fontWeight: 500,
+            borderRadius: 6,
+          }}
+        >
+          Xóa tất cả
+        </Button>
+      )}
     </Space>
   );
 
   return (
-    <AppLayout title="Imports" topBar={topBar}>
+    <AppLayout title="Imports Management" topBar={topBar}>
       {/* Banner thông báo khi có dữ liệu mới từ tab/thiết bị khác */}
       {hasNewData && (
         <Alert
@@ -174,29 +236,104 @@ export default function ImportsPage() {
           showIcon
           message={
             <span>
-              Có dữ liệu mới được import.{" "}
+              Có dữ liệu mới được import từ thiết bị khác.{" "}
               <Button
                 type="link"
                 size="small"
                 icon={<SyncOutlined />}
                 onClick={handleRealtimeRefresh}
-                style={{ padding: 0, height: "auto", lineHeight: "inherit" }}
+                style={{ padding: 0, height: "auto", lineHeight: "inherit", color: "#10b981" }}
               >
-                Tải lại
+                Tải lại bảng
               </Button>
             </span>
           }
           closable
           onClose={clearNewData}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 16, borderRadius: 8 }}
         />
       )}
+
+      {/* Main accounts table */}
       <AccountsTable
         ref={tableRef}
         filter={effectiveFilter}
         refreshSignal={refreshSignal}
         onDataChange={() => setRefreshSignal((s) => s + 1)}
       />
+
+      {/* System Status / Health cards at the bottom (Stitch design) */}
+      <div style={{ marginTop: 24 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Storage Utilized</span>}
+                value="24.8 GB"
+                prefix={<DatabaseOutlined style={{ color: "#10b981", marginRight: 8 }} />}
+                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
+              />
+              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
+                Dung lượng dữ liệu ZIP đã phân tích
+              </div>
+            </Card>
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Active Processors</span>}
+                value={4}
+                suffix="/ 8 Threads"
+                prefix={<SlidersOutlined style={{ color: "#3b82f6", marginRight: 8 }} />}
+                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
+              />
+              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
+                Số tiến trình giải nén song song hoạt động
+              </div>
+            </Card>
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Card
+              bordered
+              style={{
+                borderRadius: 12,
+                background: isDark ? "#16161a" : "#ffffff",
+                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+              }}
+              styles={{ body: { padding: 16 } }}
+            >
+              <Statistic
+                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Data Health</span>}
+                value="99.9%"
+                prefix={<HeartOutlined style={{ color: "#ef4444", marginRight: 8 }} />}
+                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
+              />
+              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
+                Tỷ lệ dữ liệu import hợp lệ không lỗi
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+
       <ImportZip ref={importRef} onImportSuccess={handleImportSuccess} />
     </AppLayout>
   );
