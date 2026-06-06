@@ -70,8 +70,9 @@ service cloud.firestore {
       // Không dùng isAllowedUser() vì sẽ tạo circular dependency
       allow read: if isAuthenticated();
 
-      // Tạo mới: chỉ admin, dữ liệu phải hợp lệ
-      allow create: if isAdmin() && isValidAccountData();
+      // Tạo mới: chỉ admin, hoặc người dùng tự tạo bản ghi của chính mình với dữ liệu hợp lệ
+      allow create: if (isAdmin() && isValidAccountData())
+                    || (isAuthenticated() && accountId == request.auth.uid && isValidAccountData());
 
       // Cập nhật: chỉ admin, không được tự thay đổi role của chính mình
       allow update: if isAdmin()
@@ -120,26 +121,65 @@ service cloud.firestore {
 
     // ── Seeding Manager ───────────────────────────────────────────────────────
     // Bộ 4 collections cho module Seeding Manager (GPM Excel bridge).
-    // Read: isAllowedUser — Write: isAdmin (nhất quán với pattern hiện tại).
+    // Read: isAllowedUser — Write: isAdmin + schema validation.
+
+    function isValidSeedingProfile() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["profileId", "profileName", "status"])
+          && d.profileId is string && d.profileId.size() > 0
+          && d.profileName is string && d.profileName.size() > 0
+          && d.status in ["active", "inactive", "banned"];
+    }
+
+    function isValidSeedingCampaign() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["name", "status"])
+          && d.name is string && d.name.size() > 0
+          && d.status in ["draft", "active", "paused", "completed"];
+    }
+
+    function isValidSeedingTask() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["campaignId", "profileId", "action", "targetUrl"])
+          && d.campaignId is string && d.campaignId.size() > 0
+          && d.profileId is string && d.profileId.size() > 0
+          && d.action in ["like", "comment", "share"]
+          && d.targetUrl is string && d.targetUrl.size() > 0;
+    }
+
+    function isValidSeedingComment() {
+      let d = request.resource.data;
+      return d.keys().hasAll(["text", "tags"])
+          && d.text is string && d.text.size() > 0
+          && d.tags is list;
+    }
 
     match /seedingProfiles/{id} {
       allow read: if isAllowedUser();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && isValidSeedingProfile();
+      allow update: if isAdmin() && isValidSeedingProfile();
+      allow delete: if isAdmin();
     }
 
     match /seedingCampaigns/{id} {
       allow read: if isAllowedUser();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && isValidSeedingCampaign();
+      allow update: if isAdmin() && isValidSeedingCampaign();
+      allow delete: if isAdmin();
     }
 
     match /seedingTasks/{id} {
       allow read: if isAllowedUser();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && isValidSeedingTask();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /seedingComments/{id} {
       allow read: if isAllowedUser();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && isValidSeedingComment();
+      allow update: if isAdmin() && isValidSeedingComment();
+      allow delete: if isAdmin();
     }
 
     // ── Mặc định: từ chối tất cả ─────────────────────────────────────────────

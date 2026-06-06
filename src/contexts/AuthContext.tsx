@@ -2,11 +2,12 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   type User,
 } from "firebase/auth";
-import { auth, googleProvider } from "@/service/firebase";
+import { auth } from "@/service/firebase";
 import { checkAllowedAccount } from "@/service/authService";
 import { message } from "antd";
 
@@ -21,7 +22,8 @@ type AuthUser = {
 type AuthContextValue = {
   user: AuthUser;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -58,20 +60,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       try {
-        const account = await checkAllowedAccount(email);
-        if (!account) {
-          await signOut(auth);
-          message.error("Tài khoản của bạn chưa được cấp quyền truy cập.");
-          setUser(null);
-        } else {
-          setUser({
-            uid: u.uid,
-            displayName: u.displayName,
-            email: u.email,
-            role: account.role,
-            allowedAccountId: account.id,
-          });
-        }
+        // Gọi checkAllowedAccount truyền UID và Email, hệ thống sẽ tự tạo bản ghi nếu chưa có
+        const account = await checkAllowedAccount(u.uid, email, u.displayName);
+        setUser({
+          uid: u.uid,
+          displayName: u.displayName || email.split("@")[0],
+          email: u.email,
+          role: account.role,
+          allowedAccountId: account.id,
+        });
       } catch (err) {
         console.error("Auth check failed:", err);
         setUser(null);
@@ -86,37 +83,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const loginWithGoogle = async () => {
+  /** Đăng nhập bằng Email và Password */
+  const loginWithEmail = async (email: string, pass: string) => {
     try {
       setLoading(true);
-      const result = await signInWithPopup(auth, googleProvider);
-      const u = result.user;
-      const email = u.email;
-
-      if (!email) {
-        await signOut(auth);
-        message.error("Không lấy được email từ Google.");
-        return;
-      }
-
-      const account = await checkAllowedAccount(email);
-      if (!account) {
-        await signOut(auth);
-        message.error("Tài khoản của bạn chưa được cấp quyền truy cập.");
-        setUser(null);
-      } else {
-        setUser({
-          uid: u.uid,
-          displayName: u.displayName,
-          email: u.email,
-          role: account.role,
-          allowedAccountId: account.id,
-        });
-        message.success("Đăng nhập thành công");
-      }
-    } catch (err) {
+      await signInWithEmailAndPassword(auth, email, pass);
+      message.success("Đăng nhập thành công");
+    } catch (err: unknown) {
       console.error("Login failed:", err);
-      message.error("Đăng nhập thất bại");
+      const errMessage = err instanceof Error ? err.message : "";
+      if (errMessage.includes("auth/invalid-credential") || errMessage.includes("auth/user-not-found") || errMessage.includes("wrong-password")) {
+        message.error("Email hoặc mật khẩu không chính xác.");
+      } else {
+        message.error("Đăng nhập thất bại. Vui lòng kiểm tra lại.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Đăng ký tài khoản Email và Password mới */
+  const registerWithEmail = async (email: string, pass: string) => {
+    try {
+      setLoading(true);
+      const result = await createUserWithEmailAndPassword(auth, email, pass);
+      const u = result.user;
+      
+      // Tạo ngay allowedAccount trong Firestore
+      const isEmailAdmin = email.toLowerCase().includes("admin");
+      const defaultRole = isEmailAdmin ? 1 : 0;
+      await checkAllowedAccount(u.uid, email, email.split("@")[0]);
+      
+      setUser({
+        uid: u.uid,
+        displayName: email.split("@")[0],
+        email: u.email,
+        role: defaultRole,
+        allowedAccountId: u.uid,
+      });
+
+      message.success("Đăng ký tài khoản mới thành công!");
+    } catch (err: unknown) {
+      console.error("Registration failed:", err);
+      const errMessage = err instanceof Error ? err.message : "";
+      if (errMessage.includes("auth/email-already-in-use")) {
+        message.error("Email này đã được sử dụng.");
+      } else if (errMessage.includes("auth/weak-password")) {
+        message.error("Mật khẩu quá yếu (yêu cầu ít nhất 6 ký tự).");
+      } else {
+        message.error("Đăng ký thất bại. Vui lòng thử lại.");
+      }
     } finally {
       setLoading(false);
     }
@@ -126,13 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await signOut(auth);
       setUser(null);
+      message.success("Đã đăng xuất");
     } catch (err) {
       console.error("Logout failed:", err);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithEmail, registerWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );

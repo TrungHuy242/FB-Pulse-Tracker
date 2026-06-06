@@ -1,73 +1,44 @@
 /**
- * Sentry error monitoring — khởi tạo một lần tại entry point.
- *
- * Chỉ khởi tạo khi biến môi trường VITE_SENTRY_DSN được cung cấp.
- * Khi không có DSN (local dev, CI test) thì bỏ qua — không ném lỗi.
- *
- * Cách dùng:
- *   import { initSentry, captureException } from "@/service/sentry";
- *   initSentry();          // gọi 1 lần trong main.tsx
- *   captureException(err); // gọi trong catch blocks
+ * Sentry error monitoring — Cấu hình no-op cho đồ án thực tập.
+ * Đã loại bỏ hoàn toàn dependency @sentry/react để giảm dung lượng bundle.
  */
-
-import * as Sentry from "@sentry/react";
-
-let _initialized = false;
 
 /**
- * Khởi tạo Sentry nếu có DSN.
- * An toàn để gọi nhiều lần — chỉ init một lần.
- *
- * @param dsn - Ghi đè DSN thay vì đọc từ env (hữu ích trong tests).
- *              Nếu không truyền thì đọc từ import.meta.env.VITE_SENTRY_DSN.
+ * Khởi tạo Sentry (no-op).
  */
-export function initSentry(dsn?: string): void {
-  if (_initialized) return;
-  const resolvedDsn = dsn ?? (import.meta.env.VITE_SENTRY_DSN as string | undefined) ?? "";
-  if (!resolvedDsn) {
-    // DSN không có — chạy trong local dev hoặc CI test, bỏ qua
-    return;
-  }
-  Sentry.init({
-    dsn: resolvedDsn,
-    environment: import.meta.env.MODE,
-    // Chỉ trace 10% requests trong production để tiết kiệm quota
-    tracesSampleRate: import.meta.env.PROD ? 0.1 : 0,
-    release: "fbpulse@0.8.0",
-    // Không log PII — chỉ errors và stack traces
-    sendDefaultPii: false,
-  });
-  _initialized = true;
+export function initSentry(_dsn?: string): void {
+  // Bỏ qua trong đồ án thực tập để tối ưu hiệu năng và dung lượng bundle
 }
 
-/** Reset trạng thái initialized — chỉ dùng trong tests. */
+/** Reset trạng thái (no-op). */
 export function _resetSentryForTests(): void {
-  _initialized = false;
+  // No-op
 }
 
 /**
- * Ghi nhận một exception vào Sentry (nếu đã init).
- * Không ném lỗi khi chưa init — an toàn để gọi ở mọi nơi.
+ * Ghi nhận exception (no-op).
  */
 export function captureException(error: unknown, context?: Record<string, unknown>): void {
-  if (!_initialized) return;
-  Sentry.captureException(error, context ? { extra: context } : undefined);
+  console.warn("[Error Captured]", error, context);
 }
 
 /**
- * Ghi nhận một message (không phải exception).
+ * Ghi nhận message (no-op).
  */
 export function captureMessage(
   message: string,
-  level: Sentry.SeverityLevel = "info",
+  level: string = "info",
   context?: Record<string, unknown>
 ): void {
-  if (!_initialized) return;
-  Sentry.captureMessage(message, { level, extra: context });
+  console.info(`[Message Captured] [${level}]`, message, context);
 }
 
-/** Re-export Sentry namespace để ErrorBoundary dùng SentryErrorBoundary nếu cần. */
-export { Sentry };
+/** Giả lập Sentry namespace rỗng để tránh lỗi import */
+export const Sentry = {
+  init: () => {},
+  captureException: () => {},
+  captureMessage: () => {},
+};
 
-/** True nếu Sentry đã được khởi tạo thành công. */
-export const isSentryEnabled = (): boolean => _initialized;
+/** Luôn trả về false vì Sentry đã bị vô hiệu hóa */
+export const isSentryEnabled = (): boolean => false;

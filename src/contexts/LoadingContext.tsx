@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
 interface LoadingContextType {
   loadingStates: Record<string, boolean>;
@@ -16,25 +16,29 @@ export const LoadingProvider = ({ children }: { children: ReactNode }) => {
     {}
   );
 
-  const showLoading = (key: string) => {
-    setLoadingStates((prev) => ({ ...prev, [key]: true }));
-  };
-
-  const closeLoading = (key: string) => {
+  const showLoading = useCallback((key: string) => {
     setLoadingStates((prev) => {
+      if (prev[key]) return prev; // Tránh update state nếu đã true
+      return { ...prev, [key]: true };
+    });
+  }, []);
+
+  const closeLoading = useCallback((key: string) => {
+    setLoadingStates((prev) => {
+      if (!prev[key]) return prev; // Tránh update state nếu không có key
       const newStates = { ...prev };
       delete newStates[key];
       return newStates;
     });
-  };
+  }, []);
 
-  const isLoading = (key: string) => {
+  const isLoading = useCallback((key: string) => {
     return loadingStates[key] || false;
-  };
+  }, [loadingStates]);
 
-  const isAnyLoading = () => {
+  const isAnyLoading = useCallback(() => {
     return Object.values(loadingStates).some((loading) => loading);
-  };
+  }, [loadingStates]);
 
   return (
     <LoadingContext.Provider
