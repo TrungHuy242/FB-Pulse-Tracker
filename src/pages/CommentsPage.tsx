@@ -409,7 +409,15 @@ export default function CommentsPage() {
       const result = await analyzeCommentsWithAI(batch);
       setAiResults(result);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Phân tích AI thất bại. Vui lòng thử lại.";
+      let msg = err instanceof Error ? err.message : "Phân tích AI thất bại. Vui lòng thử lại.";
+      if (
+        msg.includes("not-found") ||
+        msg.includes("does not exist") ||
+        msg.includes("CORS") ||
+        msg.includes("Failed to fetch")
+      ) {
+        msg = "Cloud Functions phía Firebase backend chưa được triển khai (not-found). Vui lòng chạy lệnh 'firebase deploy --only functions' ở thư mục gốc dự án để kích hoạt tính năng này.";
+      }
       setAiError(msg);
     } finally {
       setAiLoading(false);
@@ -467,7 +475,15 @@ export default function CommentsPage() {
         setIdeasModalOpen(true);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Thao tác AI thất bại.";
+      let msg = err instanceof Error ? err.message : "Thao tác AI thất bại.";
+      if (
+        msg.includes("not-found") ||
+        msg.includes("does not exist") ||
+        msg.includes("CORS") ||
+        msg.includes("Failed to fetch")
+      ) {
+        msg = "Cloud Functions phía Firebase backend chưa được triển khai (not-found). Vui lòng chạy lệnh 'firebase deploy --only functions' ở thư mục gốc dự án để kích hoạt tính năng này.";
+      }
       setAiError(msg);
     } finally {
       setExtendedAiLoading(null);

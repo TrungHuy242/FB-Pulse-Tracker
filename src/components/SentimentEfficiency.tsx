@@ -1,7 +1,9 @@
 import React from "react";
-import { Card, Table, Progress } from "antd";
+import { Card, Table, Progress, Spin } from "antd";
 import { useImportData } from "@/contexts/ImportDataContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAllComments } from "@/hooks/useAllComments";
+import { classifySentiment } from "@/utils/sentiment";
 
 interface SentimentItem {
   key: string;
@@ -15,52 +17,46 @@ export const SentimentEfficiency: React.FC = () => {
   const { imports } = useImportData();
   const { isDark } = useTheme();
 
-  // Tính toán sentiment trung bình từ toàn bộ imports
+  // Tải toàn bộ comments thực tế để phân tích
+  const { comments, loading } = useAllComments({});
+
+  // Tính toán sentiment thực tế từ dữ liệu comments
   const sentimentData: SentimentItem[] = React.useMemo(() => {
-    if (!imports || imports.length === 0) {
-      // Mock data giống thiết kế Stitch khi chưa có dữ liệu
+    if (!imports || imports.length === 0 || comments.length === 0) {
+      // Trả về phần trăm 0 khi hệ thống chưa có dữ liệu để tránh dữ liệu ảo
       return [
-        { key: "positive", sentiment: "Positive", percentage: 98.2, status: "Live", color: "#10b981" },
-        { key: "neutral", sentiment: "Neutral", percentage: 86.5, status: "Archived", color: "#9ca3af" },
-        { key: "negative", sentiment: "Negative", percentage: 42.1, status: "Live", color: "#ef4444" },
+        { key: "positive", sentiment: "Positive (Tích cực)", percentage: 0, status: "Live", color: "#10b981" },
+        { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: 0, status: "Archived", color: "#9ca3af" },
+        { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: 0, status: "Live", color: "#ef4444" },
       ];
     }
 
-    let totalPos = 0;
-    let totalNeu = 0;
-    let totalNeg = 0;
+    let posCount = 0;
+    let neuCount = 0;
+    let negCount = 0;
 
-    imports.forEach((imp) => {
-      // Tính hash giống AccountsTable để đảm bảo tính nhất quán số liệu
-      let hash = 0;
-      const idStr = imp.id || "";
-      for (let i = 0; i < idStr.length; i++) {
-        hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      const pos = Math.abs((hash % 45) + 35); // 35% - 80%
-      const neg = Math.abs(((hash >> 8) % 15) + 5); // 5% - 20%
-      const neu = 100 - pos - neg;
-
-      totalPos += pos;
-      totalNeu += neu;
-      totalNeg += neg;
+    comments.forEach((c) => {
+      const { sentiment } = classifySentiment(c.content ?? "");
+      if (sentiment === "positive") posCount++;
+      else if (sentiment === "negative") negCount++;
+      else neuCount++;
     });
 
-    const count = imports.length;
-    const avgPos = parseFloat((totalPos / count).toFixed(1));
-    const avgNeu = parseFloat((totalNeu / count).toFixed(1));
-    const avgNeg = parseFloat((totalNeg / count).toFixed(1));
+    const total = comments.length;
+    const avgPos = parseFloat(((posCount / total) * 100).toFixed(1));
+    const avgNeu = parseFloat(((neuCount / total) * 100).toFixed(1));
+    const avgNeg = parseFloat(((negCount / total) * 100).toFixed(1));
 
     return [
-      { key: "positive", sentiment: "Positive", percentage: avgPos, status: "Live", color: "#10b981" },
-      { key: "neutral", sentiment: "Neutral", percentage: avgNeu, status: "Archived", color: "#9ca3af" },
-      { key: "negative", sentiment: "Negative", percentage: avgNeg, status: "Live", color: "#ef4444" },
+      { key: "positive", sentiment: "Positive (Tích cực)", percentage: avgPos, status: "Live", color: "#10b981" },
+      { key: "neutral", sentiment: "Neutral (Trung lập)", percentage: avgNeu, status: "Archived", color: "#9ca3af" },
+      { key: "negative", sentiment: "Negative (Tiêu cực)", percentage: avgNeg, status: "Live", color: "#ef4444" },
     ];
-  }, [imports]);
+  }, [imports, comments]);
 
   const columns = [
     {
-      title: "Sentiment",
+      title: "Sentiment (Cảm xúc)",
       dataIndex: "sentiment",
       key: "sentiment",
       render: (text: string) => (
@@ -70,7 +66,7 @@ export const SentimentEfficiency: React.FC = () => {
       ),
     },
     {
-      title: "Efficiency Score",
+      title: "Tỷ lệ thực tế",
       dataIndex: "percentage",
       key: "percentage",
       align: "center" as const,
@@ -81,7 +77,7 @@ export const SentimentEfficiency: React.FC = () => {
       ),
     },
     {
-      title: "Status",
+      title: "Trạng thái",
       dataIndex: "status",
       key: "status",
       align: "center" as const,
@@ -112,7 +108,7 @@ export const SentimentEfficiency: React.FC = () => {
       },
     },
     {
-      title: "Progress",
+      title: "Biểu đồ tiến trình",
       key: "progress",
       render: (_: unknown, record: SentimentItem) => (
         <Progress
@@ -138,15 +134,24 @@ export const SentimentEfficiency: React.FC = () => {
     >
       <div
         style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: isDark ? "#8a8a8a" : "#6b6b6b",
-          letterSpacing: "0.07em",
-          textTransform: "uppercase",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           marginBottom: 16,
         }}
       >
-        Sentiment & Efficiency
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: isDark ? "#8a8a8a" : "#6b6b6b",
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+          }}
+        >
+          Sentiment & Efficiency (Phân tích cảm xúc thực tế)
+        </div>
+        {loading && <Spin size="small" />}
       </div>
 
       <Table

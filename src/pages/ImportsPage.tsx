@@ -24,7 +24,7 @@ import { getAccountNames, deleteAllImports } from "@/service/importService";
 import { useRealtimeImports } from "@/hooks/useRealtimeImports";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
-import { clearCacheByPrefix } from "@/service/queryCache";
+
 import { useTheme } from "@/contexts/ThemeContext";
 import type { StatsFilter } from "@/types";
 
@@ -135,7 +135,6 @@ export default function ImportsPage() {
         showLoading("delete-all-imports");
         try {
           await deleteAllImports();
-          clearCacheByPrefix("imports:");
           message.success("Đã xóa toàn bộ dữ liệu imports");
           await refreshAccounts();
           tableRef.current?.reloadTable();

@@ -1,14 +1,12 @@
 /**
  * SettingsPage — Cài đặt hệ thống.
- * Chia layout 2 cột (Jump to Section): General, Data Format, Appearance, Security & Privacy.
+ * Tinh giản chỉ giữ lại các cài đặt thực tế: Giao diện hiển thị, Thông tin tài khoản, Đăng xuất.
  */
-import { useState, useEffect, useRef } from "react";
+import { useRef } from "react";
 import {
   Card,
   Avatar,
   Button,
-  Select,
-  Switch,
   message,
   Tag,
   Typography,
@@ -16,19 +14,14 @@ import {
   Modal,
   Row,
   Col,
-  Input,
-  Radio,
 } from "antd";
 import {
   UserOutlined,
-  SettingOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
   ExclamationCircleOutlined,
-  SlackOutlined,
   CheckCircleFilled,
   LockOutlined,
-  DatabaseOutlined,
   BgColorsOutlined,
 } from "@ant-design/icons";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -37,20 +30,6 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useNavigate } from "react-router-dom";
 
 const { Text } = Typography;
-
-// LocalStorage keys
-const LS_DATE_FORMAT = "fbpulse.dateFormat";
-const LS_TABLE_SIZE = "fbpulse.tableSize";
-const LS_SHOW_NUMBERS = "fbpulse.showNumbers";
-
-type DateFormatOption = "vi" | "iso" | "us";
-type TableSizeOption = "small" | "middle" | "large";
-
-const DATE_FORMAT_LABELS: Record<DateFormatOption, string> = {
-  vi: "Tiếng Việt (D/M/YYYY HH:mm)",
-  iso: "ISO (YYYY-MM-DD HH:mm)",
-  us: "US (M/D/YYYY h:mm A)",
-};
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
@@ -73,75 +52,14 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   );
 }
 
-function RowSetting({
-  label,
-  description,
-  children,
-  border = true,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-  border?: boolean;
-}) {
-  const { isDark } = useTheme();
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "12px 0",
-        borderBottom: border ? `1px solid ${isDark ? "#2a2a32" : "#f0f0f0"}` : "none",
-        flexWrap: "wrap",
-        gap: 12,
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 200, paddingRight: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}>{label}</div>
-        {description && (
-          <div style={{ fontSize: 12, color: isDark ? "#9ca3af" : "#707070", marginTop: 2 }}>{description}</div>
-        )}
-      </div>
-      <div style={{ flexShrink: 0 }}>{children}</div>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { setTheme: setAppTheme, isDark } = useTheme();
 
   // Scroll Refs for Jump to Section
-  const generalRef = useRef<HTMLDivElement>(null);
-  const dataFormatRef = useRef<HTMLDivElement>(null);
   const appearanceRef = useRef<HTMLDivElement>(null);
-  const securityRef = useRef<HTMLDivElement>(null);
-
-  // Preference state
-  const [dateFormat, setDateFormat] = useState<DateFormatOption>(
-    () => (localStorage.getItem(LS_DATE_FORMAT) as DateFormatOption) ?? "vi"
-  );
-  const [tableSize, setTableSize] = useState<TableSizeOption>(
-    () => (localStorage.getItem(LS_TABLE_SIZE) as TableSizeOption) ?? "small"
-  );
-  const [showNumbers, setShowNumbers] = useState<boolean>(
-    () => localStorage.getItem(LS_SHOW_NUMBERS) !== "false"
-  );
-
-  // General settings state
-  const [workspaceName, setWorkspaceName] = useState("FB Pulse Workspace");
-  const [timezone, setTimezone] = useState("Asia/Ho_Chi_Minh");
-  const [syncFreq, setSyncFreq] = useState("1h");
-  const [slackConnect, setSlackConnect] = useState(false);
-
-  // Persist preferences to localStorage on change
-  useEffect(() => {
-    localStorage.setItem(LS_DATE_FORMAT, dateFormat);
-    localStorage.setItem(LS_TABLE_SIZE, tableSize);
-    localStorage.setItem(LS_SHOW_NUMBERS, String(showNumbers));
-  }, [dateFormat, tableSize, showNumbers]);
+  const accountRef = useRef<HTMLDivElement>(null);
 
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -164,7 +82,7 @@ export default function SettingsPage() {
   };
 
   const handleSavePreferences = () => {
-    message.success("Đã lưu các thiết lập hệ thống");
+    message.success("Đã lưu cài đặt giao diện");
   };
 
   // Styled helper values
@@ -190,10 +108,8 @@ export default function SettingsPage() {
               Mục lục cài đặt
             </span>
             {[
-              { label: "Cấu hình chung", ref: generalRef, icon: <SettingOutlined /> },
-              { label: "Định dạng dữ liệu", ref: dataFormatRef, icon: <DatabaseOutlined /> },
               { label: "Giao diện hiển thị", ref: appearanceRef, icon: <BgColorsOutlined /> },
-              { label: "Bảo mật & Tài khoản", ref: securityRef, icon: <LockOutlined /> },
+              { label: "Bảo mật & Tài khoản", ref: accountRef, icon: <LockOutlined /> },
             ].map((section, idx) => (
               <Button
                 key={idx}
@@ -218,134 +134,8 @@ export default function SettingsPage() {
         {/* Right column: Content panels */}
         <Col xs={24} md={18}>
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            
-            {/* 1. General Settings */}
-            <div ref={generalRef}>
-              <Card
-                bordered
-                style={{
-                  borderRadius: 12,
-                  background: isDark ? "#16161a" : "#ffffff",
-                  borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-                }}
-                styles={{ body: { padding: "24px" } }}
-              >
-                <SectionTitle icon={<SettingOutlined />} title="General Configuration" />
-                
-                <RowSetting label="Workspace Name" description="Tên không gian làm việc hiển thị trên báo cáo">
-                  <Input
-                    value={workspaceName}
-                    onChange={(e) => setWorkspaceName(e.target.value)}
-                    size="small"
-                    style={{
-                      width: 220,
-                      borderRadius: 6,
-                      background: isDark ? "#1d1d22" : "#ffffff",
-                      borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-                      color: isDark ? "#ffffff" : "#171717",
-                    }}
-                  />
-                </RowSetting>
 
-                <RowSetting label="Timezone" description="Múi giờ hệ thống để tính toán dòng thời gian biểu đồ">
-                  <Select
-                    value={timezone}
-                    onChange={setTimezone}
-                    size="small"
-                    style={{ width: 220 }}
-                  >
-                    <Select.Option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (GMT+7)</Select.Option>
-                    <Select.Option value="UTC">UTC (GMT+0)</Select.Option>
-                    <Select.Option value="America/New_York">America/New_York (EST)</Select.Option>
-                  </Select>
-                </RowSetting>
-
-                <RowSetting label="Tần suất cập nhật (Sync Frequency)" description="Chu kỳ quét và làm tươi các chỉ số real-time">
-                  <Select
-                    value={syncFreq}
-                    onChange={setSyncFreq}
-                    size="small"
-                    style={{ width: 220 }}
-                  >
-                    <Select.Option value="15m">15 phút một lần</Select.Option>
-                    <Select.Option value="1h">1 giờ một lần (Khuyên dùng)</Select.Option>
-                    <Select.Option value="24h">24 giờ một lần</Select.Option>
-                  </Select>
-                </RowSetting>
-
-                <RowSetting
-                  label="Slack Integration"
-                  description="Gửi báo cáo phân tích tự động qua kênh Slack"
-                  border={false}
-                >
-                  <Space>
-                    <SlackOutlined style={{ color: slackConnect ? "#3b82f6" : "#8a8a8a", fontSize: 16 }} />
-                    <Switch
-                      checked={slackConnect}
-                      onChange={setSlackConnect}
-                      size="small"
-                      style={{ background: slackConnect ? "#10b981" : undefined }}
-                    />
-                  </Space>
-                </RowSetting>
-              </Card>
-            </div>
-
-            {/* 2. Data Format Settings */}
-            <div ref={dataFormatRef}>
-              <Card
-                bordered
-                style={{
-                  borderRadius: 12,
-                  background: isDark ? "#16161a" : "#ffffff",
-                  borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-                }}
-                styles={{ body: { padding: "24px" } }}
-              >
-                <SectionTitle icon={<DatabaseOutlined />} title="Data Formatting" />
-
-                <RowSetting label="Định dạng ngày giờ" description="Định dạng thời gian hiển thị trong bảng/báo cáo">
-                  <Select
-                    value={dateFormat}
-                    onChange={(v) => setDateFormat(v as DateFormatOption)}
-                    size="small"
-                    style={{ width: 220 }}
-                  >
-                    {(Object.entries(DATE_FORMAT_LABELS) as [DateFormatOption, string][]).map(([k, v]) => (
-                      <Select.Option key={k} value={k}>{v}</Select.Option>
-                    ))}
-                  </Select>
-                </RowSetting>
-
-                <RowSetting label="Table Density (Mật độ bảng)" description="Mức độ hiển thị của bảng dữ liệu">
-                  <Radio.Group
-                    size="small"
-                    value={tableSize}
-                    onChange={(e) => setTableSize(e.target.value as TableSizeOption)}
-                    buttonStyle="solid"
-                  >
-                    <Radio.Button value="small">Compact</Radio.Button>
-                    <Radio.Button value="middle">Default</Radio.Button>
-                    <Radio.Button value="large">Large</Radio.Button>
-                  </Radio.Group>
-                </RowSetting>
-
-                <RowSetting
-                  label="Hiển thị số liệu đầy đủ"
-                  description="Bật: 1,234,567 — Tắt: 1.2M để tối giản"
-                  border={false}
-                >
-                  <Switch
-                    checked={showNumbers}
-                    onChange={setShowNumbers}
-                    size="small"
-                    style={{ background: showNumbers ? "#10b981" : undefined }}
-                  />
-                </RowSetting>
-              </Card>
-            </div>
-
-            {/* 3. Appearance Settings (Stitch Theme Selector) */}
+            {/* 1. Appearance Settings (Stitch Theme Selector) */}
             <div ref={appearanceRef}>
               <Card
                 bordered
@@ -457,8 +247,8 @@ export default function SettingsPage() {
               </Card>
             </div>
 
-            {/* 4. Security & Accounts */}
-            <div ref={securityRef}>
+            {/* 2. Security & Accounts */}
+            <div ref={accountRef}>
               <Card
                 bordered
                 style={{
@@ -514,36 +304,39 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <RowSetting
-                  label="Xác thực 2 lớp (MFA/2FA)"
-                  description="Yêu cầu mã xác thực khi đăng nhập để bảo vệ thông tin"
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 0",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  }}
                 >
-                  <Switch
-                    checked={user?.role === 1} // Chỉ giả lập bật với admin theo thiết kế security tier
-                    disabled
-                    size="small"
-                    style={{ background: user?.role === 1 ? "#10b981" : undefined }}
-                  />
-                </RowSetting>
-
-                <RowSetting
-                  label="Đăng xuất khỏi hệ thống"
-                  description="Xóa phiên hoạt động và token lưu trữ cục bộ"
-                  border={false}
-                >
-                  <Button
-                    danger
-                    size="small"
-                    icon={<LogoutOutlined />}
-                    onClick={handleLogout}
-                    style={{
-                      borderRadius: 6,
-                      fontWeight: 500,
-                    }}
-                  >
-                    Đăng xuất
-                  </Button>
-                </RowSetting>
+                  <div style={{ flex: 1, minWidth: 200, paddingRight: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}>
+                      Đăng xuất khỏi hệ thống
+                    </div>
+                    <div style={{ fontSize: 12, color: textMuteColor, marginTop: 2 }}>
+                      Xóa phiên hoạt động và token lưu trữ cục bộ
+                    </div>
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
+                    <Button
+                      danger
+                      size="small"
+                      icon={<LogoutOutlined />}
+                      onClick={handleLogout}
+                      style={{
+                        borderRadius: 6,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Đăng xuất
+                    </Button>
+                  </div>
+                </div>
               </Card>
             </div>
 

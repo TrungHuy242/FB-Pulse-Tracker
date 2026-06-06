@@ -16,7 +16,6 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/service/firebase";
-import { withCache, clearCacheByPrefix } from "@/service/queryCache";
 import type { ImportRecord } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -66,13 +65,12 @@ export const getAllImports = async (): Promise<ImportRecord[]> => {
  * Cached 30s — tránh re-fetch khi nhiều component mount cùng lúc.
  */
 export const getAccountNames = async (): Promise<string[]> => {
-  return withCache("imports:accountNames", async () => {
-    const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs
-      .map((d) => (d.data().accountName ?? "Unknown").toString())
-      .filter(Boolean);
-  }, 30_000);
+  const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
+  const snap = await getDocs(q);
+  const names = snap.docs
+    .map((d) => (d.data().accountName ?? "Unknown").toString())
+    .filter(Boolean);
+  return Array.from(new Set(names));
 };
 
 // ── Write operations ─────────────────────────────────────────────────────────
@@ -97,8 +95,6 @@ export const finalizeImport = async (
   payload: FinalizeImportPayload
 ): Promise<void> => {
   await updateDoc(doc(db, "imports", importId), payload as unknown as Record<string, unknown>);
-  // Xóa cache để dropdown filter cập nhật tên tài khoản mới
-  clearCacheByPrefix("imports:");
 };
 
 /**
@@ -161,8 +157,6 @@ export const deleteImport = async (importId: string): Promise<void> => {
 
   // Xóa parent document
   await deleteDoc(doc(db, "imports", importId));
-  // Invalidate cache
-  clearCacheByPrefix("imports:");
 };
 
 /**

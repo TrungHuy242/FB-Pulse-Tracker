@@ -16,7 +16,7 @@ import {
   CopyOutlined,
   CheckOutlined,
 } from "@ant-design/icons";
-import { captureException } from "@/service/sentry";
+
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -67,11 +67,6 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     this.setState({ errorInfo: info });
     console.error("[ErrorBoundary]", error, info);
-    // Gửi lên Sentry nếu đã khởi tạo (production)
-    captureException(error, {
-      componentStack: info.componentStack ?? "",
-      section: this.props.section ?? "unknown",
-    });
   }
 
   private handleReset = () => {

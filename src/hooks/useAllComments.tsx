@@ -8,7 +8,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/service/firebase";
-import { withCache } from "@/service/queryCache";
 import type { CommentItem } from "@/types";
 
 export interface CommentFilter {
@@ -38,9 +37,7 @@ export const useAllComments = (filter: CommentFilter, refreshSignal?: number) =>
     setLoading(true);
     try {
       const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
-      const importsSnap = await withCache("imports:list:raw", async () => {
-        return getDocs(q);
-      }, 60_000);
+      const importsSnap = await getDocs(q);
 
       const fromTs = filter.from?.getTime() ?? null;
       const toTs = filter.to?.getTime() ?? null;
@@ -60,16 +57,13 @@ export const useAllComments = (filter: CommentFilter, refreshSignal?: number) =>
         if (account && !accountName.toLowerCase().includes(account)) continue;
 
         try {
-          const commentItems = await withCache(`imports:${imp.id}:comments`, async () => {
-            const chunksSnap = await getDocs(
-              collection(db, "imports", imp.id, "commentChunks")
-            );
-            const items: CommentItem[] = [];
-            for (const chunk of chunksSnap.docs) {
-              items.push(...((chunk.data().items ?? []) as CommentItem[]));
-            }
-            return items;
-          }, 120_000);
+          const chunksSnap = await getDocs(
+            collection(db, "imports", imp.id, "commentChunks")
+          );
+          const commentItems: CommentItem[] = [];
+          for (const chunk of chunksSnap.docs) {
+            commentItems.push(...((chunk.data().items ?? []) as CommentItem[]));
+          }
 
           for (const item of commentItems) {
             // Date filter

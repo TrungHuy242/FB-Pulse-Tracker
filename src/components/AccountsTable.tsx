@@ -22,7 +22,7 @@ import { useImportReactions } from "./AccountsTable/hooks/useImportReactions";
 import { exportAllImportsToExcel } from "./exportAllImportsToExcel";
 import { exportAllImportsToCSV } from "./exportAllImportsToCSV";
 import { exportAllImportsToJSON } from "./exportAllImportsToJSON";
-import { clearCacheByPrefix } from "@/service/queryCache";
+
 import { useLoading } from "@/contexts/LoadingContext";
 import { deleteImport } from "@/service/importService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -111,7 +111,6 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
             for (const id of selectedRowKeys) {
               await deleteImport(id);
             }
-            clearCacheByPrefix("imports:");
             message.success(`Đã xóa ${selectedRowKeys.length} import`);
             setSelectedRowKeys([]);
             reloadTable();
@@ -150,8 +149,6 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           try {
             // Cascade delete qua service layer
             await deleteImport(importId);
-            // Xóa cache liên quan để tránh hiển thị dữ liệu cũ
-            clearCacheByPrefix("imports:");
             message.success("Xóa import thành công");
             reloadTable();
             reloadStats?.();

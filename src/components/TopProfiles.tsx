@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Avatar, Button } from "antd";
+import { Card, Avatar, Button, Empty } from "antd";
 import { UserOutlined, ArrowRightOutlined } from "@ant-design/icons";
 import { useImportData } from "@/contexts/ImportDataContext";
 import { useNavigate } from "react-router-dom";
@@ -17,15 +17,10 @@ export const TopProfiles: React.FC = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
 
-  // Tạo dữ liệu top profiles
+  // Tạo dữ liệu top profiles từ dữ liệu thật
   const profiles: ProfileItem[] = React.useMemo(() => {
     if (!imports || imports.length === 0) {
-      // Mock data giống thiết kế Stitch khi chưa có dữ liệu
-      return [
-        { name: "Alex Rivera", grade: "Grade A", engagement: "92% Engagement", engagementNum: 92 },
-        { name: "Sarah Chen", grade: "Grade B+", engagement: "88% Engagement", engagementNum: 88 },
-        { name: "Marcus Wright", grade: "Grade B", engagement: "84% Engagement", engagementNum: 84 },
-      ];
+      return [];
     }
 
     // Nhóm theo tên account
@@ -39,47 +34,32 @@ export const TopProfiles: React.FC = () => {
       map[name].reactions += imp.reactionsCount || 0;
     });
 
-    // Chuyển thành array và sort
+    // Chuyển thành array, tính Grade thật và sort
     const sorted = Object.entries(map)
-      .map(([name, counts]) => ({
-        name,
-        total: counts.comments + counts.reactions,
-      }))
-      .sort((a, b) => b.total - a.total);
+      .map(([name, counts]) => {
+        const total = counts.comments + counts.reactions;
+        
+        // Tính Grade thực tế dựa trên khối lượng tương tác
+        let grade = "Grade C";
+        if (total >= 10000) grade = "Grade A";
+        else if (total >= 5000) grade = "Grade B+";
+        else if (total >= 1000) grade = "Grade B";
+        else if (total < 200) grade = "Grade D";
 
-    // Lấy top 3 và gán thông số tương đối
-    const grades = ["Grade A", "Grade B+", "Grade B"];
-    const baseRates = [92, 85, 78];
+        return {
+          name,
+          grade,
+          engagement: `${total.toLocaleString("vi-VN")} tương tác`,
+          engagementNum: total,
+        };
+      })
+      .sort((a, b) => b.engagementNum - a.engagementNum);
 
-    const result = sorted.slice(0, 3).map((item, index) => {
-      const rate = baseRates[index] || 70;
-      return {
-        name: item.name,
-        grade: grades[index] || "Grade C",
-        engagement: `${rate}% Engagement`,
-        engagementNum: rate,
-      };
-    });
-
-    // Nếu có ít hơn 3 profile, chèn mock cho đủ 3
-    if (result.length < 3) {
-      const mockProfiles = [
-        { name: "Alex Rivera", grade: "Grade A", engagement: "92% Engagement", engagementNum: 92 },
-        { name: "Sarah Chen", grade: "Grade B+", engagement: "88% Engagement", engagementNum: 88 },
-        { name: "Marcus Wright", grade: "Grade B", engagement: "84% Engagement", engagementNum: 84 },
-      ];
-      for (let i = result.length; i < 3; i++) {
-        // Tránh trùng tên
-        const mock = mockProfiles[i] || mockProfiles[0];
-        result.push({
-          ...mock,
-          name: result.some(r => r.name === mock.name) ? `${mock.name} II` : mock.name
-        });
-      }
-    }
-
-    return result;
+    // Lấy tối đa top 3 tài khoản có tương tác cao nhất
+    return sorted.slice(0, 3);
   }, [imports]);
+
+  const hasData = profiles.length > 0;
 
   return (
     <Card
@@ -106,89 +86,102 @@ export const TopProfiles: React.FC = () => {
             marginBottom: 20,
           }}
         >
-          Top Profiles
+          Top Profiles (Tương tác hàng đầu)
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {profiles.map((p, idx) => {
-            // Xác định màu sắc avatar hoặc grade
-            let avatarBg = "rgba(16, 185, 129, 0.1)";
-            let avatarColor = "#10b981";
-            if (idx === 1) {
-              avatarBg = "rgba(59, 130, 246, 0.1)";
-              avatarColor = "#3b82f6";
-            } else if (idx === 2) {
-              avatarBg = "rgba(245, 158, 11, 0.1)";
-              avatarColor = "#f59e0b";
-            }
+        {!hasData ? (
+          <div style={{ padding: "24px 0", textAlign: "center" }}>
+            <Empty
+              description={
+                <span style={{ color: isDark ? "#8a8a8a" : "#6b6b6b" }}>
+                  Chưa có dữ liệu tài khoản
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {profiles.map((p, idx) => {
+              // Xác định màu sắc avatar hoặc grade
+              let avatarBg = "rgba(16, 185, 129, 0.1)";
+              let avatarColor = "#10b981";
+              if (idx === 1) {
+                avatarBg = "rgba(59, 130, 246, 0.1)";
+                avatarColor = "#3b82f6";
+              } else if (idx === 2) {
+                avatarBg = "rgba(245, 158, 11, 0.1)";
+                avatarColor = "#f59e0b";
+              }
 
-            return (
-              <div
-                key={p.name + idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "6px 0",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <Avatar
-                    icon={<UserOutlined />}
-                    style={{ background: avatarBg, color: avatarColor }}
-                  />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: isDark ? "#ffffff" : "#171717",
-                      }}
-                    >
-                      {p.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: isDark ? "#6b6b6b" : "#888888",
-                      }}
-                    >
-                      {p.engagement}
-                    </div>
-                  </div>
-                </div>
-
-                <span
+              return (
+                <div
+                  key={p.name + idx}
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: 4,
-                    background: isDark ? "#1c1c1c" : "#f5f5f5",
-                    color: isDark ? "#10b981" : "#10b981",
-                    border: `1px solid ${isDark ? "#2a2a2a" : "#e5e7eb"}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
                   }}
                 >
-                  {p.grade}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Avatar
+                      icon={<UserOutlined />}
+                      style={{ background: avatarBg, color: avatarColor }}
+                    />
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: isDark ? "#ffffff" : "#171717",
+                        }}
+                      >
+                        {p.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: isDark ? "#6b6b6b" : "#888888",
+                        }}
+                      >
+                        {p.engagement}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: 4,
+                      background: isDark ? "#1c1c1c" : "#f5f5f5",
+                      color: "#10b981",
+                      border: `1px solid ${isDark ? "#2a2a2a" : "#e5e7eb"}`,
+                    }}
+                  >
+                    {p.grade}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Button
         type="link"
         onClick={() => navigate("/analytics")}
+        disabled={!hasData}
         style={{
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "center",
           gap: 6,
           padding: 0,
           marginTop: 24,
           alignSelf: "flex-start",
-          color: "#10b981",
+          color: hasData ? "#10b981" : (isDark ? "#333" : "#bfbfbf"),
           fontWeight: 600,
           fontSize: 13,
         }}

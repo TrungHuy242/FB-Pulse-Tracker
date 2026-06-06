@@ -6,7 +6,6 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/service/firebase";
-import { withCache } from "@/service/queryCache";
 import type { StatsFilter } from "@/types";
 
 export interface LightComment {
@@ -34,9 +33,7 @@ export const useAllEngagement = (filter?: StatsFilter, refreshSignal?: number) =
       setLoading(true);
       try {
         const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
-        const importsSnap = await withCache("imports:list:raw", async () => {
-          return getDocs(q);
-        }, 60_000);
+        const importsSnap = await getDocs(q);
 
         const allComments: LightComment[] = [];
         const allReactions: LightReaction[] = [];
@@ -50,16 +47,13 @@ export const useAllEngagement = (filter?: StatsFilter, refreshSignal?: number) =
             } else if (!acct.includes(filter.name.toLowerCase())) continue;
           }
 
-          // Comments (cached)
+          // Comments
           try {
-            const commentItems = await withCache(`imports:${imp.id}:comments`, async () => {
-              const cSnap = await getDocs(collection(db, "imports", imp.id, "commentChunks"));
-              const items: LightComment[] = [];
-              for (const chunk of cSnap.docs) {
-                items.push(...((chunk.data().items ?? []) as LightComment[]));
-              }
-              return items;
-            }, 120_000);
+            const cSnap = await getDocs(collection(db, "imports", imp.id, "commentChunks"));
+            const commentItems: LightComment[] = [];
+            for (const chunk of cSnap.docs) {
+              commentItems.push(...((chunk.data().items ?? []) as LightComment[]));
+            }
 
             for (const item of commentItems) {
               if (fromTs || toTs) {
@@ -71,16 +65,13 @@ export const useAllEngagement = (filter?: StatsFilter, refreshSignal?: number) =
             }
           } catch { /* skip */ }
 
-          // Reactions (cached)
+          // Reactions
           try {
-            const reactionItems = await withCache(`imports:${imp.id}:reactions`, async () => {
-              const rSnap = await getDocs(collection(db, "imports", imp.id, "reactionChunks"));
-              const items: LightReaction[] = [];
-              for (const chunk of rSnap.docs) {
-                items.push(...((chunk.data().items ?? []) as LightReaction[]));
-              }
-              return items;
-            }, 120_000);
+            const rSnap = await getDocs(collection(db, "imports", imp.id, "reactionChunks"));
+            const reactionItems: LightReaction[] = [];
+            for (const chunk of rSnap.docs) {
+              reactionItems.push(...((chunk.data().items ?? []) as LightReaction[]));
+            }
 
             for (const item of reactionItems) {
               if (fromTs || toTs) {
