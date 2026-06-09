@@ -121,7 +121,6 @@ export default function AnalyticsPage() {
   }, [patchSelectAria]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 

@@ -29,6 +29,29 @@ interface ReactionChunkItem {
   linkPost?: string;
 }
 
+type ExcelCell = {
+  t?: "s" | "n" | "b" | "d" | "e" | "z";
+  f?: string;
+  s?: {
+    font?: {
+      name?: string;
+      sz?: number;
+      bold?: boolean;
+      color?: { rgb?: string };
+    };
+    alignment?: {
+      horizontal?: string;
+      vertical?: string;
+    };
+  };
+};
+
+type ExcelSheet = Record<string, ExcelCell | undefined> & {
+  "!cols"?: Array<{ wch: number; hidden?: boolean }>;
+  "!merges"?: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }>;
+  "!autofilter"?: { ref: string };
+};
+
 // If selectedIds is provided, export only those imports; otherwise export all.
 export const exportAllImportsToExcel = async (
   selectedIds?: string[],
@@ -158,7 +181,7 @@ export const exportAllImportsToExcel = async (
         `=${subtotalReactions}`,
       ]);
 
-      const sheet = XLSX.utils.aoa_to_sheet(rows);
+      const sheet = XLSX.utils.aoa_to_sheet(rows) as ExcelSheet;
 
       try {
         const lastRowIndex = rows.length;
@@ -168,23 +191,29 @@ export const exportAllImportsToExcel = async (
         const gAddr = XLSXUtils.encode_cell({ r: lastRowIndex - 1, c: 6 });
 
         const concatF = `CONCATENATE("Tổng: Comments: ",${subtotalComments}," - Reactions: ",${subtotalReactions})`;
-        sheet[aAddr] = { t: "s", f: concatF } as any;
+        sheet[aAddr] = { t: "s", f: concatF };
 
         try {
-          sheet[aAddr].s = {
+          if (sheet[aAddr]) {
+            sheet[aAddr].s = {
             font: { name: "Calibri", sz: 18, bold: true, color: { rgb: "FF000000" } },
             alignment: { horizontal: "center", vertical: "center" },
-          } as any;
+            };
+          }
         } catch {
           // styling unsupported
         }
 
-        sheet[fAddr] = { t: "n", f: subtotalComments } as any;
-        sheet[gAddr] = { t: "n", f: subtotalReactions } as any;
+        sheet[fAddr] = { t: "n", f: subtotalComments };
+        sheet[gAddr] = { t: "n", f: subtotalReactions };
 
         try {
-          sheet[fAddr].s = { font: { bold: true } } as any;
-          sheet[gAddr].s = { font: { bold: true } } as any;
+          if (sheet[fAddr]) {
+            sheet[fAddr].s = { font: { bold: true } };
+          }
+          if (sheet[gAddr]) {
+            sheet[gAddr].s = { font: { bold: true } };
+          }
         } catch {
           // ignore
         }

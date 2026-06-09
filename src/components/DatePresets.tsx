@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * DatePresets — Các nút chọn khoảng thời gian nhanh.
  * Dùng chung cho Dashboard (HomePage) và AnalyticsPage.

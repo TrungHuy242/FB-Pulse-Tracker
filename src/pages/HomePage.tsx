@@ -7,7 +7,7 @@ import { AccountsTable } from "@/components/AccountsTable";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { TopProfiles } from "@/components/TopProfiles";
 import { SentimentEfficiency } from "@/components/SentimentEfficiency";
-import { useRef, useState, useMemo, lazy, Suspense } from "react";
+import { useRef, useState, useMemo, useCallback, lazy, Suspense } from "react";
 import { Button, DatePicker, Select, Tooltip, Space } from "antd";
 
 const EngagementChart = lazy(() => import("@/components/EngagementChart"));
@@ -64,14 +64,14 @@ export default function HomePage() {
   const [refreshSignal, setRefreshSignal] = useState(0);
 
   // Aria patch cho Select combobox
-  const patchSelectAria = () => {
+  const patchSelectAria = useCallback(() => {
     const container = selectContainerRef.current;
     if (!container) return;
     const combobox = container.querySelector<HTMLElement>('[role="combobox"]');
     if (combobox && !combobox.getAttribute("aria-controls")) {
       combobox.setAttribute("aria-controls", "home-user-filter-select_list");
     }
-  };
+  }, []);
 
   useEffect(() => {
     patchSelectAria();
@@ -80,11 +80,9 @@ export default function HomePage() {
     const observer = new MutationObserver(patchSelectAria);
     observer.observe(container, { childList: true, subtree: true });
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [patchSelectAria]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     getAccountNames()
       .then(setAccountOptions)
       .catch(console.error);

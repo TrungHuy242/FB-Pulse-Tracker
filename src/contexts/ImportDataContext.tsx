@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * ImportDataContext — Shared real-time cache cho danh sách import.
  *
@@ -76,7 +77,6 @@ export const ImportDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── onSnapshot listener ──────────────────────────────────────────────────
   useEffect(() => {
-    setLoading(true);
     const q = query(
       collection(db, "imports"),
       orderBy("importedAt", "desc"),

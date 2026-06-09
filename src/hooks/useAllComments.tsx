@@ -32,6 +32,8 @@ export const useAllComments = (filter: CommentFilter, refreshSignal?: number) =>
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const fromTime = filter.from?.getTime() ?? null;
+  const toTime = filter.to?.getTime() ?? null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,8 +41,8 @@ export const useAllComments = (filter: CommentFilter, refreshSignal?: number) =>
       const q = query(collection(db, "imports"), orderBy("importedAt", "desc"));
       const importsSnap = await getDocs(q);
 
-      const fromTs = filter.from?.getTime() ?? null;
-      const toTs = filter.to?.getTime() ?? null;
+      const fromTs = fromTime;
+      const toTs = toTime;
       const keyword = filter.keyword?.toLowerCase().trim() ?? "";
       const author = filter.author?.toLowerCase().trim() ?? "";
       const group = filter.group?.toLowerCase().trim() ?? "";
@@ -107,23 +109,13 @@ export const useAllComments = (filter: CommentFilter, refreshSignal?: number) =>
     filter.author,
     filter.group,
     filter.account,
-    filter.from?.getTime(),
-    filter.to?.getTime(),
-    refreshSignal,
+    fromTime,
+    toTime,
   ]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    filter.keyword,
-    filter.author,
-    filter.group,
-    filter.account,
-    filter.from?.getTime(),
-    filter.to?.getTime(),
-    refreshSignal,
-  ]);
+  }, [load, refreshSignal]);
 
   return { comments, loading, total, hasMore, reload: load };
 };

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * ErrorBoundary — Bắt lỗi React không xử lý được.
  *

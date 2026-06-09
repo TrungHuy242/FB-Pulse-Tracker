@@ -30,6 +30,14 @@ dist-ssr
 playwright-report/
 test-results/
 .playwright-mcp/
+.playwright-*
+
+# Test / QA generated artifacts
+coverage/
+.qa-*
+.debug-*
+.profiles-*
+.qa-downloads-*
 
 # Claude Code tool artifacts (không thuộc source code)
 .agents/
