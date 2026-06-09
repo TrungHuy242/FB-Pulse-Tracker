@@ -51,7 +51,7 @@
 ### Testing & CI/CD
 | Công nghệ | Phiên bản | Vai trò |
 |-----------|-----------|---------|
-| Vitest | 4.1.7 | Unit + integration tests |
+| Vitest    | 4.1.7 | Unit + integration tests |
 | Testing Library | 16.3.2 | React component testing |
 | Playwright | 1.60.0 | E2E tests |
 | GitHub Actions | — | CI pipeline |
@@ -67,7 +67,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                        BROWSER (SPA)                        │
 │                                                             │
-│  React 19 + TypeScript  ←→  Ant Design 6 + ECharts 6       │
+│  React 19 + TypeScript  ←→  Ant Design 6 + ECharts 6        │
 │        ↓                                                    │
 │  Firebase SDK 12                                            │
 │    ├── Auth (Google OAuth)                                  │
@@ -77,17 +77,17 @@
 ┌───────────────────▼─────────────────────────────────────────┐
 │                  FIREBASE CLOUD PLATFORM                    │
 │                                                             │
-│  Firestore DB          Cloud Functions (Node 20)           │
-│  ├── allowedAccounts   ├── analyzeSentiment()              │
-│  ├── imports/          │     └── Gemini API               │
-│  │   ├── commentChunks ├── summarizeComments()            │
-│  │   └── reactionChunks│     └── Gemini API               │
-│  ├── seedingProfiles   ├── extractSeoKeywords()           │
-│  ├── seedingCampaigns  ├── scoreLeads()                   │
-│  ├── seedingTasks      ├── classifyIntent()               │
-│  └── seedingComments   └── generateSeedingIdeas()         │
-│                               └── Gemini API (tất cả)     │
-│  Hosting (Firebase)    Security Rules (Firestore)          │
+│  Firestore DB          Cloud Functions (Node 20)            │
+│  ├── allowedAccounts   ├── analyzeSentiment()               │
+│  ├── imports/          │     └── Gemini API                 │
+│  │   ├── commentChunks ├── summarizeComments()              │
+│  │   └── reactionChunks│     └── Gemini API                 │
+│  ├── seedingProfiles   ├── extractSeoKeywords()             │
+│  ├── seedingCampaigns  ├── scoreLeads()                     │
+│  ├── seedingTasks      ├── classifyIntent()                 │
+│  └── seedingComments   └── generateSeedingIdeas()           │
+│                               └── Gemini API (tất cả)       │
+│  Hosting (Firebase)    Security Rules (Firestore)           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
