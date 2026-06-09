@@ -22,6 +22,7 @@ import {
   onSnapshot,
   Timestamp,
 } from "firebase/firestore";
+import type { FieldValue } from "firebase/firestore";
 import { db } from "@/service/firebase";
 import type {
   SeedingProfile,
@@ -39,6 +40,10 @@ const profilesRef  = () => collection(db, "seedingProfiles");
 const campaignsRef = () => collection(db, "seedingCampaigns");
 const tasksRef     = () => collection(db, "seedingTasks");
 const commentsRef  = () => collection(db, "seedingComments");
+
+type CampaignUpdateData = Partial<Omit<SeedingCampaign, "id" | "createdAt" | "scheduledAt">> & {
+  scheduledAt?: SeedingCampaign["scheduledAt"] | FieldValue;
+};
 
 // ── Realtime subscriptions ────────────────────────────────────────────────────
 
@@ -76,6 +81,18 @@ export function subscribeCommentLibrary(
   const q = query(commentsRef(), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingComment)));
+  });
+}
+
+/**
+ * Subscribe realtime vào tất cả tasks collection.
+ */
+export function subscribeAllTasks(
+  callback: (tasks: SeedingTask[]) => void
+): () => void {
+  const q = query(tasksRef(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingTask)));
   });
 }
 
@@ -169,7 +186,7 @@ export async function createCampaign(
 
 export async function updateCampaign(
   id: string,
-  data: Partial<Omit<SeedingCampaign, "id" | "createdAt">>
+  data: CampaignUpdateData
 ): Promise<void> {
   await updateDoc(doc(db, "seedingCampaigns", id), {
     ...data,
@@ -192,20 +209,27 @@ export async function deleteCampaign(id: string): Promise<void> {
 
 export async function getTasksByCampaign(campaignId: string): Promise<SeedingTask[]> {
   const snap = await getDocs(
-    query(tasksRef(), where("campaignId", "==", campaignId), orderBy("createdAt", "asc"))
+    query(tasksRef(), where("campaignId", "==", campaignId))
   );
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingTask));
+  const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingTask));
+  // Sắp xếp client-side theo thời gian tạo tăng dần
+  return tasks.sort((a, b) => {
+    const timeA = a.createdAt?.seconds || 0;
+    const timeB = b.createdAt?.seconds || 0;
+    return timeA - timeB;
+  });
 }
 
 export async function createTasksBulk(
-  tasks: Array<Omit<SeedingTask, "id" | "createdAt" | "status" | "finishedAt" | "exportedAt" | "errorMessage">>
+  tasks: Array<Omit<SeedingTask, "id" | "createdAt" | "status" | "finishedAt" | "exportedAt" | "errorMessage">>,
+  initialStatus: TaskStatus = "pending"
 ): Promise<number> {
   const batch = writeBatch(db);
   for (const task of tasks) {
     const ref = doc(tasksRef());
     batch.set(ref, {
       ...task,
-      status: "pending" as TaskStatus,
+      status: initialStatus,
       createdAt: serverTimestamp(),
     });
   }
@@ -306,7 +330,8 @@ export async function deleteSeedingComment(id: string): Promise<void> {
 }
 
 /** Tăng usageCount khi comment được dùng để tạo task */
-export async function incrementCommentUsage(_ids: string[]): Promise<void> {
+export async function incrementCommentUsage(ids: string[]): Promise<void> {
+  void ids;
   // No-op — usageCount updated separately via direct updateSeedingComment if needed
 }
 
@@ -317,9 +342,11 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   active: "Đang chạy",
   paused: "Tạm dừng",
   completed: "Hoàn thành",
+  scheduled: "Đã lên lịch",
 };
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  scheduled: "Đã lên lịch",
   pending: "Chờ",
   running: "Đang chạy",
   success: "Thành công",

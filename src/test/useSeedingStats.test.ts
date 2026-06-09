@@ -36,6 +36,17 @@ describe("computeSeedingStats", () => {
     expect(s.total).toBe(3);
   });
 
+  it("counts scheduled tasks without including them in success rate", () => {
+    const tasks = [
+      makeTask({ status: "scheduled" }),
+      makeTask({ status: "success" }),
+      makeTask({ status: "failed" }),
+    ];
+    const s = computeSeedingStats(tasks);
+    expect(s.scheduled).toBe(1);
+    expect(s.successRate).toBe(50);
+  });
+
   it("counts like/comment/share from success tasks only", () => {
     const tasks = [
       makeTask({ status: "success", action: "like" }),
@@ -56,6 +67,7 @@ describe("computeSeedingStats", () => {
       makeTask({ status: "failed" }),
       makeTask({ status: "pending" }),  // excluded from rate
       makeTask({ status: "running" }),  // excluded from rate
+      makeTask({ status: "scheduled" }), // excluded from rate
     ];
     const s = computeSeedingStats(tasks);
     // done = success(2) + failed(1) + skipped(0) = 3
@@ -63,6 +75,7 @@ describe("computeSeedingStats", () => {
     expect(s.successRate).toBe(67);
     expect(s.pending).toBe(1);
     expect(s.running).toBe(1);
+    expect(s.scheduled).toBe(1);
   });
 
   it("returns 100% success rate when all done tasks succeeded", () => {
@@ -85,14 +98,16 @@ describe("computeSeedingStats", () => {
     const tasks = [
       makeTask({ status: "pending" }),
       makeTask({ status: "running" }),
+      makeTask({ status: "scheduled" }),
       makeTask({ status: "success" }),
       makeTask({ status: "failed" }),
       makeTask({ status: "skipped" }),
     ];
     const s = computeSeedingStats(tasks);
-    expect(s.total).toBe(5);
+    expect(s.total).toBe(6);
     expect(s.pending).toBe(1);
     expect(s.running).toBe(1);
+    expect(s.scheduled).toBe(1);
     expect(s.success).toBe(1);
     expect(s.failed).toBe(1);
     expect(s.skipped).toBe(1);

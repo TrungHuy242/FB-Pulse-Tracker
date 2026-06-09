@@ -3,8 +3,8 @@ import type { Timestamp } from "firebase/firestore";
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 export type SeedingAction   = "like" | "comment" | "share";
-export type TaskStatus      = "pending" | "running" | "success" | "failed" | "skipped";
-export type CampaignStatus  = "draft" | "active" | "paused" | "completed";
+export type TaskStatus      = "scheduled" | "pending" | "running" | "success" | "failed" | "skipped";
+export type CampaignStatus  = "draft" | "active" | "paused" | "completed" | "scheduled";
 export type ProfileStatus   = "active" | "inactive" | "banned";
 
 // ── Firestore documents ───────────────────────────────────────────────────────
@@ -24,6 +24,8 @@ export interface SeedingCampaign {
   description?: string;
   status: CampaignStatus;
   targetUrl?: string;      // URL mặc định cho tasks trong campaign
+  scheduledAt?: Timestamp; // Thời gian hẹn giờ chạy tự động
+  isTemplate?: boolean;    // Đánh dấu chiến dịch mẫu
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -39,7 +41,9 @@ export interface SeedingTask {
   shareCaption?: string;   // Chỉ dùng khi action === "share"
   delayMin: number;        // Giây — GPM dùng để randomize delay
   delayMax: number;
+  totalFiles?: number;
   status: TaskStatus;
+  retryCount?: number;     // Số lần đã tự động chạy lại khi lỗi
   errorMessage?: string;
   finishedAt?: Timestamp;
   exportedAt?: Timestamp;
@@ -92,6 +96,7 @@ export interface ProfileImportRow {
 
 export interface SeedingStats {
   total: number;
+  scheduled: number;
   pending: number;
   running: number;
   success: number;

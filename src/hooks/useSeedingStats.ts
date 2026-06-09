@@ -16,6 +16,7 @@ import type { SeedingTask, SeedingStats } from "@/types/seeding";
 export function computeSeedingStats(tasks: SeedingTask[]): SeedingStats {
   const stats: SeedingStats = {
     total:        tasks.length,
+    scheduled:    0,
     pending:      0,
     running:      0,
     success:      0,

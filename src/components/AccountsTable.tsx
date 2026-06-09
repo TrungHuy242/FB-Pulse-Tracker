@@ -320,7 +320,7 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
           );
         },
       },
-      {
+      ...(user?.role === 1 ? [{
         title: "",
         key: "actions",
         align: "center" as const,
@@ -337,7 +337,7 @@ export const AccountsTable = forwardRef<AccountsTableRef, AccountsTableProps>(
             />
           </Tooltip>
         ),
-      },
+      }] : []),
     ];
 
     return (

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * CommentsPage — Trang phân tích bình luận sâu.
  * Tính năng: tìm kiếm toàn văn, lọc theo tác giả/nhóm/tài khoản/ngày,
@@ -7,7 +8,7 @@
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import {
   Input, Button, Select, DatePicker, Table, Tag, Space, Tooltip,
-  Row, Col, Skeleton, Empty, Typography, Dropdown, Alert, theme, Modal,
+  Row, Col, Skeleton, Empty, Typography, Dropdown, Alert, theme, Modal, message,
 } from "antd";
 import {
   SearchOutlined, ClearOutlined, CommentOutlined, DownloadOutlined,
@@ -17,8 +18,9 @@ import {
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAllComments, type CommentFilter } from "@/hooks/useAllComments";
-import { getAccountNames } from "@/service/importService";
+import { getAccountNames, updateCommentsIntent } from "@/service/importService";
 import { classifySentiment } from "@/utils/sentiment";
 import {
   analyzeCommentsWithAI,
@@ -289,6 +291,8 @@ function AiResultsPanel({ results, onClose }: AiResultsPanelProps) {
 
 export default function CommentsPage() {
   const { token } = theme.useToken();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 1;
 
   // Filter state
   const [keyword, setKeyword] = useState("");
@@ -296,6 +300,7 @@ export default function CommentsPage() {
   const [selectedAccount, setSelectedAccount] = useState<string | undefined>(undefined);
   const [selectedGroup, setSelectedGroup] = useState<string | undefined>(undefined);
   const [selectedSentiment, setSelectedSentiment] = useState<"positive" | "neutral" | "negative" | undefined>(undefined);
+  const [selectedIntentFilter, setSelectedIntentFilter] = useState<string | undefined>(undefined);
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [page, setPage] = useState(1);
 
@@ -303,6 +308,10 @@ export default function CommentsPage() {
   const [activeFilter, setActiveFilter] = useState<CommentFilter>({});
   /** Sentiment filter — applied client-side after load (not in Firestore query) */
   const [activeSentiment, setActiveSentiment] = useState<"positive" | "neutral" | "negative" | undefined>(undefined);
+  /** Intent filter — applied client-side after load */
+  const [activeIntentFilter, setActiveIntentFilter] = useState<string | undefined>(undefined);
+
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
   // Account options for dropdown
   const [accountOptions, setAccountOptions] = useState<string[]>([]);
@@ -311,7 +320,7 @@ export default function CommentsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AiSentimentResponse | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-
+  
   // AI Extended states
   const [seoResults, setSeoResults] = useState<SeoKeyword[] | null>(null);
   const [seoModalOpen, setSeoModalOpen] = useState(false);
@@ -331,7 +340,7 @@ export default function CommentsPage() {
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
-  const { comments, loading, total, hasMore } = useAllComments(activeFilter);
+  const { comments, loading, total, hasMore } = useAllComments(activeFilter, refreshSignal);
 
   // Group options derived from loaded data
   const groupOptions = useMemo(() => {
@@ -360,7 +369,8 @@ export default function CommentsPage() {
       to: range?.[1] ? dayjs(range[1]).endOf("day").toDate() : null,
     });
     setActiveSentiment(selectedSentiment);
-  }, [keyword, authorInput, selectedAccount, selectedGroup, range, selectedSentiment]);
+    setActiveIntentFilter(selectedIntentFilter);
+  }, [keyword, authorInput, selectedAccount, selectedGroup, range, selectedSentiment, selectedIntentFilter]);
 
   const handleClear = useCallback(() => {
     setKeyword("");
@@ -368,7 +378,9 @@ export default function CommentsPage() {
     setSelectedAccount(undefined);
     setSelectedGroup(undefined);
     setSelectedSentiment(undefined);
+    setSelectedIntentFilter(undefined);
     setActiveSentiment(undefined);
+    setActiveIntentFilter(undefined);
     setRange(null);
     setPage(1);
     setActiveFilter({});
@@ -376,14 +388,35 @@ export default function CommentsPage() {
     setAiError(null);
   }, []);
 
-  // Client-side sentiment filter (applied after Firestore fetch)
+  // ── AI Intent result map (id → intent) for per-row badges ─────────────────
+  const aiIntentMap = useMemo<Map<string, IntentResult>>(() => {
+    if (!intentResults) return new Map();
+    return new Map(intentResults.map((r) => [r.id, r]));
+  }, [intentResults]);
+
+  // ── AI result map (id → result) for per-row badges ────────────────────────
+  const aiResultMap = useMemo<Map<string, AiSentimentResult>>(() => {
+    if (!aiResults) return new Map();
+    return new Map(aiResults.results.map((r) => [r.id, r]));
+  }, [aiResults]);
+
+  // Client-side sentiment and intent filter (applied after Firestore fetch)
   const sentimentFiltered = useMemo(() => {
-    if (!activeSentiment) return comments;
     return comments.filter((c) => {
-      const { sentiment } = classifySentiment(c.content ?? "");
-      return sentiment === activeSentiment;
+      // 1. Lọc cảm xúc
+      if (activeSentiment) {
+        const { sentiment } = classifySentiment(c.content ?? "");
+        if (sentiment !== activeSentiment) return false;
+      }
+      // 2. Lọc ý định (ưu tiên kết quả vừa chạy AI xong, nếu không thì lấy từ DB)
+      if (activeIntentFilter) {
+        const aiKey = `${c.importId}-${c.commentTime}`;
+        const currentIntent = aiIntentMap.get(aiKey)?.intent || c.intent;
+        if (currentIntent !== activeIntentFilter) return false;
+      }
+      return true;
     });
-  }, [comments, activeSentiment]);
+  }, [comments, activeSentiment, activeIntentFilter, aiIntentMap]);
 
   // Client-side pagination (on top of sentiment-filtered results)
   const paginatedComments = useMemo(() => {
@@ -426,6 +459,10 @@ export default function CommentsPage() {
 
   // AI Extended actions
   const handleAiAction = useCallback(async (key: string) => {
+    if (!isAdmin) {
+      message.warning("Chỉ admin mới được chạy công cụ AI.");
+      return;
+    }
     if (sentimentFiltered.length === 0) return;
     setExtendedAiLoading(key);
     setAiError(null);
@@ -456,14 +493,54 @@ export default function CommentsPage() {
         setLeadResults(sortedLeads);
         setLeadModalOpen(true);
       } else if (key === "intent") {
-        const batch = sentimentFiltered.slice(0, 100).map((c, i) => ({
-          id: `${c.importId ?? i}-${c.commentTime ?? i}`,
+        const batch = sentimentFiltered.slice(0, 100).map((c) => ({
+          id: `${c.importId}___${c.commentTime}___${c.authorName}`,
           content: c.content ?? "",
         }));
         const res = await classifyIntentWithAI(batch);
         if (res.error) throw new Error(res.error);
-        setIntentResults(res.results);
+
+        const resultsToSave = res.results.map((r) => {
+          const parts = r.id.split("___");
+          const importId = parts[0] || "";
+          const commentTime = parseInt(parts[1] || "0");
+          const authorName = parts[2] || "";
+          const originalComment = sentimentFiltered.find(
+            (c) =>
+              c.importId === importId &&
+              c.commentTime === commentTime &&
+              c.authorName === authorName
+          );
+          return {
+            importId,
+            commentTime,
+            authorName,
+            content: originalComment?.content || "",
+            intent: r.intent,
+            confidence: r.confidence,
+          };
+        });
+
+        message.loading("Đang lưu nhãn ý định bình luận vào Firestore...", 0);
+        const savedCount = await updateCommentsIntent(resultsToSave);
+        message.destroy();
+        message.success(`Đã phân tích và lưu thành công ${savedCount} nhãn ý định!`);
+
+        // Chuẩn hóa format ID cho client state để UI render ngay (nếu cần)
+        // Client render antd badge dựa trên aiIntentMap (id: importId-commentTime)
+        const normalizedResults = res.results.map((r) => {
+          const parts = r.id.split("___");
+          const importId = parts[0] || "";
+          const commentTime = parts[1] || "";
+          return {
+            ...r,
+            id: `${importId}-${commentTime}`,
+          };
+        });
+
+        setIntentResults(normalizedResults);
         setIntentModalOpen(true);
+        setRefreshSignal((prev) => prev + 1);
       } else if (key === "ideas") {
         const batch = sentimentFiltered.slice(0, 500).map((c, i) => ({
           id: `${c.importId ?? i}-${c.commentTime ?? i}`,
@@ -488,7 +565,7 @@ export default function CommentsPage() {
     } finally {
       setExtendedAiLoading(null);
     }
-  }, [sentimentFiltered, selectedAccount, handleAiAnalyze]);
+  }, [isAdmin, sentimentFiltered, selectedAccount, handleAiAnalyze]);
 
   // ── Export menu ────────────────────────────────────────────────────────────
 
@@ -506,18 +583,7 @@ export default function CommentsPage() {
     if (key === "excel") exportCommentsToXLSX(sentimentFiltered);
   }, [sentimentFiltered]);
 
-  // ── AI Intent result map (id → intent) for per-row badges ─────────────────
-  const aiIntentMap = useMemo<Map<string, IntentResult>>(() => {
-    if (!intentResults) return new Map();
-    return new Map(intentResults.map((r) => [r.id, r]));
-  }, [intentResults]);
-
-  // ── AI result map (id → result) for per-row badges ────────────────────────
-
-  const aiResultMap = useMemo<Map<string, AiSentimentResult>>(() => {
-    if (!aiResults) return new Map();
-    return new Map(aiResults.results.map((r) => [r.id, r]));
-  }, [aiResults]);
+  // Maps moved up to handle client-side filtering
 
   // ── Table columns ──────────────────────────────────────────────────────────
 
@@ -604,10 +670,14 @@ export default function CommentsPage() {
       title: "Ý định (AI)",
       key: "intent",
       width: 120,
-      render: (_: any, record: RichComment, idx: number) => {
-        const aiKey = `${record.importId ?? idx}-${record.commentTime ?? idx}`;
+      render: (_: unknown, record: RichComment) => {
+        const aiKey = `${record.importId}-${record.commentTime}`;
         const intentRes = aiIntentMap.get(aiKey);
-        if (!intentRes) return <span style={{ color: "#aaa" }}>—</span>;
+        
+        const finalIntent = intentRes ? intentRes.intent : record.intent;
+        const finalConfidence = intentRes ? intentRes.confidence : record.intentConfidence;
+
+        if (!finalIntent) return <span style={{ color: "#aaa" }}>—</span>;
 
         const intentCfg: Record<string, { label: string; color: string; bg: string }> = {
           buy: { label: "Mua hàng", color: "#1a7f5e", bg: "rgba(62,207,142,0.10)" },
@@ -617,10 +687,10 @@ export default function CommentsPage() {
           other: { label: "Khác", color: "#707070", bg: "#f4f4f4" },
         };
 
-        const cfg = intentCfg[intentRes.intent] || { label: intentRes.intent, color: "#707070", bg: "#f4f4f4" };
+        const cfg = intentCfg[finalIntent] || { label: finalIntent, color: "#707070", bg: "#f4f4f4" };
 
         return (
-          <Tooltip title={`Độ tin cậy: ${intentRes.confidence}`}>
+          <Tooltip title={`Độ tin cậy: ${finalConfidence || "high"}`}>
             <Tag style={{
               background: cfg.bg, border: "none",
               color: cfg.color, borderRadius: 4,
@@ -730,6 +800,20 @@ export default function CommentsPage() {
         <Select.Option value="neutral">Trung lập</Select.Option>
         <Select.Option value="negative">Tiêu cực</Select.Option>
       </Select>
+      <Select
+        placeholder="Ý định"
+        size="small"
+        style={{ minWidth: 120 }}
+        value={selectedIntentFilter}
+        onChange={setSelectedIntentFilter}
+        allowClear
+      >
+        <Select.Option value="buy">Mua hàng</Select.Option>
+        <Select.Option value="inquiry">Hỏi đáp</Select.Option>
+        <Select.Option value="compliment">Khen ngợi</Select.Option>
+        <Select.Option value="complaint">Khiếu nại</Select.Option>
+        <Select.Option value="other">Khác</Select.Option>
+      </Select>
       <DatePicker.RangePicker
         value={range}
         size="small"
@@ -747,29 +831,30 @@ export default function CommentsPage() {
         Xóa
       </Button>
 
-      {/* AI Extended Tools Dropdown */}
-      <Dropdown
-        menu={{
-          items: [
-            { key: "sentiment", label: "Phân tích cảm xúc AI (Max 50)", icon: <RobotOutlined /> },
-            { key: "seo", label: "Trích xuất từ khóa SEO (Max 500)", icon: <SearchOutlined /> },
-            { key: "leads", label: "Chấm điểm Lead tiềm năng (Max 200)", icon: <CheckCircleOutlined /> },
-            { key: "intent", label: "Phân loại ý định (Max 100)", icon: <ExclamationCircleOutlined /> },
-            { key: "ideas", label: "Ý tưởng Seeding (Max 500)", icon: <CommentOutlined /> },
-          ],
-          onClick: ({ key }) => handleAiAction(key),
-        }}
-        disabled={loading || sentimentFiltered.length === 0}
-        trigger={["click"]}
-      >
-        <Button
-          size="small"
-          icon={<RobotOutlined />}
-          loading={aiLoading || extendedAiLoading !== null}
+      {isAdmin && (
+        <Dropdown
+          menu={{
+            items: [
+              { key: "sentiment", label: "Phân tích cảm xúc AI (Max 50)", icon: <RobotOutlined /> },
+              { key: "seo", label: "Trích xuất từ khóa SEO (Max 500)", icon: <SearchOutlined /> },
+              { key: "leads", label: "Chấm điểm Lead tiềm năng (Max 200)", icon: <CheckCircleOutlined /> },
+              { key: "intent", label: "Phân loại ý định (Max 100)", icon: <ExclamationCircleOutlined /> },
+              { key: "ideas", label: "Ý tưởng Seeding (Max 500)", icon: <CommentOutlined /> },
+            ],
+            onClick: ({ key }) => handleAiAction(key),
+          }}
+          disabled={loading || sentimentFiltered.length === 0}
+          trigger={["click"]}
         >
-          Công cụ AI <DownOutlined style={{ fontSize: 10 }} />
-        </Button>
-      </Dropdown>
+          <Button
+            size="small"
+            icon={<RobotOutlined />}
+            loading={aiLoading || extendedAiLoading !== null}
+          >
+            Công cụ AI <DownOutlined style={{ fontSize: 10 }} />
+          </Button>
+        </Dropdown>
+      )}
 
       {/* Export dropdown: CSV + JSON */}
       <Dropdown

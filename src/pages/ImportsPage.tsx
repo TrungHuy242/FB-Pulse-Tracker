@@ -50,16 +50,12 @@ export default function ImportsPage() {
   // Real-time: phát hiện import mới từ tab/thiết bị khác
   const { hasNewData, clearNewData } = useRealtimeImports(true);
 
-  const fromTime = appliedFilter.from?.getTime() ?? null;
-  const toTime = appliedFilter.to?.getTime() ?? null;
-  const filterName = appliedFilter.name ?? null;
-
   const effectiveFilter = useMemo<StatsFilter | undefined>(() => {
     const hasRange = !!(appliedFilter.from && appliedFilter.to);
     const hasName = !!appliedFilter.name;
     if (hasRange || hasName) return appliedFilter;
     return undefined;
-  }, [fromTime, toTime, filterName]);
+  }, [appliedFilter]);
 
   // Aria patch
   const patchSelectAria = useCallback(() => {
@@ -151,15 +147,17 @@ export default function ImportsPage() {
 
   const topBar = (
     <Space size={8} wrap>
-      <Button
-        type="primary"
-        icon={<FileTextOutlined style={{ color: "#171717" }} />}
-        onClick={() => importRef.current?.open()}
-        size="small"
-        style={{ background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 500 }}
-      >
-        Import mới
-      </Button>
+      {user?.role === 1 && (
+        <Button
+          type="primary"
+          icon={<FileTextOutlined style={{ color: "#171717" }} />}
+          onClick={() => importRef.current?.open()}
+          size="small"
+          style={{ background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 500 }}
+        >
+          Import mới
+        </Button>
+      )}
 
       <DatePicker.RangePicker
         value={range}

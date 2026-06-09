@@ -100,7 +100,7 @@ export function exportTasksToCSV(tasks: SeedingTask[], campaignName: string): st
 
 // ── Parse report từ GPM ───────────────────────────────────────────────────────
 
-const VALID_STATUSES = new Set<string>(["pending", "running", "success", "failed", "skipped"]);
+const VALID_STATUSES = new Set<string>(["scheduled", "pending", "running", "success", "failed", "skipped"]);
 
 /**
  * Parse raw rows từ Excel/CSV thành TaskReportRow[].

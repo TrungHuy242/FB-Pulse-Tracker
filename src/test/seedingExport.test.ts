@@ -149,6 +149,7 @@ describe("normalizeTaskStatus", () => {
     ["skipped", "skipped"],
     ["skip", "skipped"],
     ["ignored", "skipped"],
+    ["scheduled", "scheduled"],
     ["pending", "pending"],
     ["unknown_xyz", "failed"],  // unknown → failed
   ];

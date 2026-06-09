@@ -38,6 +38,12 @@ export interface CommentChunkPayload {
   count: number;
 }
 
+interface CommentChunkItem {
+  authorName?: string;
+  content?: string;
+  commentTime?: number;
+}
+
 export interface ReactionChunkPayload {
   index: number;
   items: unknown[];
@@ -196,4 +202,80 @@ export const deleteImportsByAccountName = async (
   for (const r of records) {
     await deleteImport(r.id);
   }
+};
+
+/**
+ * Cập nhật ý định (intent) của bình luận hàng loạt vào Firestore.
+ * Nhóm theo importId, sau đó đọc và cập nhật các commentChunks tương ứng.
+ */
+export const updateCommentsIntent = async (
+  results: Array<{
+    importId: string;
+    commentTime: number;
+    authorName: string;
+    content: string;
+    intent: string;
+    confidence: "high" | "medium" | "low";
+  }>
+): Promise<number> => {
+  if (results.length === 0) return 0;
+
+  // 1. Gom nhóm theo importId
+  const groupsByImport: Record<string, typeof results> = {};
+  for (const r of results) {
+    if (!r.importId) continue;
+    if (!groupsByImport[r.importId]) {
+      groupsByImport[r.importId] = [];
+    }
+    groupsByImport[r.importId].push(r);
+  }
+
+  let updatedCount = 0;
+
+  // 2. Cập nhật từng import
+  for (const importId of Object.keys(groupsByImport)) {
+    const importResults = groupsByImport[importId];
+    try {
+      const chunksSnap = await getDocs(
+        collection(db, "imports", importId, "commentChunks")
+      );
+
+      for (const docSnap of chunksSnap.docs) {
+        const chunkData = docSnap.data() as CommentChunkPayload;
+        const items = chunkData.items as CommentChunkItem[];
+        let chunkUpdated = false;
+
+        const newItems = items.map((item) => {
+          const matched = importResults.find(
+            (r) =>
+              r.commentTime === item.commentTime &&
+              r.authorName === item.authorName &&
+              r.content === item.content
+          );
+
+          if (matched) {
+            chunkUpdated = true;
+            updatedCount++;
+            return {
+              ...item,
+              intent: matched.intent,
+              intentConfidence: matched.confidence,
+            };
+          }
+          return item;
+        });
+
+        if (chunkUpdated) {
+          await updateDoc(
+            doc(db, "imports", importId, "commentChunks", docSnap.id),
+            { items: newItems }
+          );
+        }
+      }
+    } catch (err) {
+      console.error(`Lỗi cập nhật intent cho import ${importId}:`, err);
+    }
+  }
+
+  return updatedCount;
 };

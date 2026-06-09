@@ -57,7 +57,6 @@ export async function summarizeCommentsWithAI(
   try {
     const total = comments.length;
     let positive = 0;
-    let neutral = 0;
     let negative = 0;
 
     interface ScoredComment {
@@ -78,8 +77,6 @@ export async function summarizeCommentsWithAI(
       } else if (sentiment === "negative") {
         negative++;
         scoredNegatives.push({ content: c.content, score });
-      } else {
-        neutral++;
       }
 
       // Tách từ đơn giản để trích xuất từ khóa
@@ -158,4 +155,3 @@ export async function summarizeCommentsWithAI(
     return { result: null, error: msg };
   }
 }
-
