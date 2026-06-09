@@ -9,11 +9,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    /**
-     * Kiểm tra email có trong allowedAccounts không.
-     * Dùng exists() thay vì get() để tránh extra read khi chỉ cần biết tồn tại.
-     * Không circular: allowedAccounts.read dùng isAuthenticated(), không dùng hàm này.
-     */
+    /** Kiểm tra user hiện tại có trong whitelist allowedAccounts/{uid}. */
     function isAllowedUser() {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/allowedAccounts/$(request.auth.uid));
@@ -25,7 +21,7 @@ service cloud.firestore {
      * Chỉ gọi khi cần kiểm tra write quyền — tránh gọi cho read thường xuyên.
      */
     function isAdmin() {
-      return isAuthenticated() &&
+      return isAllowedUser() &&
         get(/databases/$(database)/documents/allowedAccounts/$(request.auth.uid)).data.role == 1;
     }
 
@@ -66,18 +62,19 @@ service cloud.firestore {
     // ── allowedAccounts ───────────────────────────────────────────────────────
     // Quản lý danh sách tài khoản được phép truy cập ứng dụng.
     match /allowedAccounts/{accountId} {
-      // Đọc: bất kỳ user đã auth (cần cho login flow kiểm tra quyền truy cập)
-      // Không dùng isAllowedUser() vì sẽ tạo circular dependency
-      allow read: if isAuthenticated();
+      // User chỉ được đọc document của chính mình; admin được đọc/list toàn bộ whitelist.
+      allow get: if isAuthenticated() && (accountId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
 
-      // Tạo mới: chỉ admin, hoặc người dùng tự tạo bản ghi của chính mình với dữ liệu hợp lệ
-      allow create: if (isAdmin() && isValidAccountData())
-                    || (isAuthenticated() && accountId == request.auth.uid && isValidAccountData());
-
-      // Cập nhật: chỉ admin, không được tự thay đổi role của chính mình
-      allow update: if isAdmin()
+      // Tạo mới: chỉ admin, và không được tự tạo/chỉnh quyền document của chính mình từ client.
+      allow create: if isAdmin()
                     && accountId != request.auth.uid
                     && isValidAccountData();
+
+      // Cập nhật: admin được sửa user; nếu sửa chính mình thì role phải giữ nguyên.
+      allow update: if isAdmin()
+                    && isValidAccountData()
+                    && (accountId != request.auth.uid || request.resource.data.role == resource.data.role);
 
       // Xóa: chỉ admin, không được tự xóa chính mình
       allow delete: if isAdmin() && accountId != request.auth.uid;
@@ -135,7 +132,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.keys().hasAll(["name", "status"])
           && d.name is string && d.name.size() > 0
-          && d.status in ["draft", "active", "paused", "completed"];
+          && d.status in ["draft", "active", "paused", "completed", "scheduled"]
+          && (d.status != "scheduled" || d.scheduledAt is timestamp);
     }
 
     function isValidSeedingTask() {

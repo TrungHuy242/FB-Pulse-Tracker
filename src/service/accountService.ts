@@ -5,11 +5,11 @@
  * Giúp dễ test, dễ thay đổi data layer mà không ảnh hưởng đến UI.
  */
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDocs,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/service/firebase";
@@ -18,6 +18,7 @@ import type { AllowedAccount } from "@/types";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CreateAccountPayload {
+  uid: string;
   email: string;
   displayName: string;
   role: 0 | 1;
@@ -52,8 +53,13 @@ export const getAllowedAccounts = async (): Promise<AllowedAccount[]> => {
 export const createAllowedAccount = async (
   payload: CreateAccountPayload
 ): Promise<string> => {
-  const ref = await addDoc(collection(db, "allowedAccounts"), payload);
-  return ref.id;
+  const uid = payload.uid.trim();
+  await setDoc(doc(db, "allowedAccounts", uid), {
+    email: payload.email,
+    displayName: payload.displayName,
+    role: payload.role,
+  });
+  return uid;
 };
 
 /**

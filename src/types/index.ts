@@ -17,6 +17,8 @@ export interface CommentItem {
   commentTime: number; // Unix timestamp (seconds)
   title: string;
   group: string;
+  intent?: string;
+  intentConfidence?: "high" | "medium" | "low";
 }
 
 export interface ReactionItem {

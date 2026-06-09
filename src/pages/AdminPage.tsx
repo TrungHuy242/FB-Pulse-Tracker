@@ -49,6 +49,7 @@ const AdminPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<AllowedAccount | null>(null);
+  const [uid, setUid] = useState("");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<0 | 1>(0);
@@ -73,7 +74,7 @@ const AdminPage: React.FC = () => {
     } catch (err) {
       console.error("Load allowed accounts failed", err);
       message.error("Không tải được danh sách");
-    } fillingly: {
+    } finally {
       setLoading(false);
       closeLoading("admin-load");
     }
@@ -116,6 +117,7 @@ const AdminPage: React.FC = () => {
       return;
     }
     setEditing(null);
+    setUid("");
     setEmail("");
     setDisplayName("");
     setRole(0);
@@ -128,6 +130,7 @@ const AdminPage: React.FC = () => {
       return;
     }
     setEditing(row);
+    setUid(row.id);
     setEmail(row.email || "");
     setDisplayName(row.displayName || "");
     setRole(typeof row.role === "number" ? row.role : 0);
@@ -135,6 +138,10 @@ const AdminPage: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!editing && !uid.trim()) {
+      message.error("Firebase UID không được để trống");
+      return;
+    }
     if (!email || !email.includes("@")) {
       message.error("Email không hợp lệ");
       return;
@@ -159,7 +166,7 @@ const AdminPage: React.FC = () => {
         });
         message.success("Cập nhật thành công");
       } else {
-        await createAllowedAccount({ email, displayName, role });
+        await createAllowedAccount({ uid: uid.trim(), email, displayName, role });
         message.success("Thêm thành công");
       }
       setIsModalOpen(false);
@@ -285,6 +292,15 @@ const AdminPage: React.FC = () => {
       dataIndex: "email",
       key: "email",
       render: (text: string) => <span style={{ color: isDark ? "#d1d5db" : "#374151" }}>{text}</span>,
+    },
+    {
+      title: "FIREBASE UID",
+      dataIndex: "id",
+      key: "id",
+      width: 220,
+      render: (text: string) => (
+        <code style={{ color: isDark ? "#d1d5db" : "#374151", fontSize: 11 }}>{text}</code>
+      ),
     },
     {
       title: "QUYỀN HẠN",
@@ -638,7 +654,7 @@ const AdminPage: React.FC = () => {
             rowKey={(r: AllowedAccount) => r.id}
             loading={loading}
             pagination={false}
-            scroll={{ x: 800 }}
+            scroll={{ x: 1000 }}
             className="custom-table"
           />
         </Card>
@@ -654,12 +670,29 @@ const AdminPage: React.FC = () => {
           onOk={handleSave}
           onCancel={() => setIsModalOpen(false)}
           okButtonProps={{
-            disabled: !email || !displayName,
+            disabled: !email || !displayName || (!editing && !uid.trim()),
             style: { background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 600 },
           }}
           centered
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 12 }}>
+            <div>
+              <label htmlFor="admin-uid-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                Firebase UID <span style={{ color: "#ff4d4f" }}>*</span>
+              </label>
+              <Input
+                id="admin-uid-input"
+                placeholder="UID từ Firebase Authentication"
+                required={!editing}
+                value={uid}
+                disabled={!!editing}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUid(e.target.value)}
+                style={{ borderRadius: 6 }}
+              />
+              <div style={{ marginTop: 6, color: muteColor, fontSize: 11 }}>
+                Document ID trong allowedAccounts phải trùng Firebase Auth UID của user.
+              </div>
+            </div>
             <div>
               <label htmlFor="admin-email-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
                 Địa chỉ Email <span style={{ color: "#ff4d4f" }}>*</span>
