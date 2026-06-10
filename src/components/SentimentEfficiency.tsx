@@ -131,7 +131,7 @@ export const SentimentEfficiency: React.FC = () => {
         <Progress
           percent={record.percentage}
           strokeColor={record.color}
-          trailColor={isDark ? "#1f1f1f" : "#f3f4f6"}
+          railColor={isDark ? "#1f1f1f" : "#f3f4f6"}
           showInfo={false}
           size="small"
           aria-label={`Tiến độ cảm xúc ${record.sentiment}`}

@@ -40,7 +40,8 @@ Trạng thái MVP nội bộ hiện tại:
 
 ### Admin
 - Danh sách whitelist `allowedAccounts`.
-- Tạo whitelist bằng Firebase Auth UID.
+- Tạo member nội bộ bằng email/password và tự tạo whitelist.
+- Có nút tạo lại và sao chép mật khẩu khi thêm member mới.
 - Sửa email/displayName/role.
 - Không cho admin tự xóa hoặc tự hạ quyền chính mình ở Firestore Rules.
 
@@ -67,7 +68,7 @@ role: 1
 firebase deploy --only firestore:rules
 ```
 
-Sau khi admin đầu tiên đăng nhập, admin có thể thêm whitelist cho user khác trong Admin Page. Lưu ý: Admin Page chỉ tạo/sửa document whitelist, không tạo Firebase Auth user.
+Sau khi admin đầu tiên đăng nhập, admin có thể tạo member nội bộ ngay trong Admin Page bằng email/password. App sẽ tạo Firebase Auth user và whitelist cùng lúc. First admin vẫn phải bootstrap thủ công.
 
 ## Firestore Rules
 
@@ -123,4 +124,3 @@ Các flow admin/viewer có ghi dữ liệu cần seeded Firebase test accounts v
 - [DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md](DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md)
 - [docs/GPM_EXCEL_BRIDGE.md](docs/GPM_EXCEL_BRIDGE.md)
 - [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md)
-

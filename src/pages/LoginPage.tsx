@@ -135,15 +135,15 @@ export default function LoginPage() {
           type="info"
           showIcon
           icon={<SafetyCertificateOutlined />}
-          message="Ung dung noi bo"
-          description="Khong ho tro dang ky cong khai. Neu chua duoc cap quyen, hay lien he admin de them Firebase UID vao whitelist."
+          title="Ung dung noi bo"
+          description="Khong ho tro dang ky cong khai. Neu chua duoc cap quyen, hay lien he admin de tao tai khoan noi bo va them vao whitelist."
           style={{ marginBottom: 16 }}
         />
 
         {authError && (
           <Alert
             type="error"
-            message="Khong the truy cap"
+            title="Khong the truy cap"
             description={authError}
             showIcon
             style={{ marginBottom: 16 }}

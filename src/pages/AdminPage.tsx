@@ -29,6 +29,7 @@ import {
   UserOutlined,
   SafetyCertificateOutlined,
   HomeOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
@@ -52,6 +53,7 @@ const AdminPage: React.FC = () => {
   const [uid, setUid] = useState("");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<0 | 1>(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
@@ -64,6 +66,26 @@ const AdminPage: React.FC = () => {
   const isEditingSelf = !!(
     editing && user?.allowedAccountId && editing.id === user.allowedAccountId
   );
+
+  const generateTemporaryPassword = () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%";
+    let value = "";
+    for (let i = 0; i < 12; i += 1) {
+      value += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return value;
+  };
+
+  const getAccountErrorMessage = (error: unknown) => {
+    if (typeof error === "object" && error && "code" in error) {
+      const code = String((error as { code?: string }).code ?? "");
+      if (code === "auth/email-already-in-use") return "Email này đã tồn tại trong Firebase Auth.";
+      if (code === "auth/invalid-email") return "Email không hợp lệ.";
+      if (code === "auth/weak-password") return "Mật khẩu quá yếu. Hãy dùng mật khẩu mạnh hơn.";
+      if (code === "permission-denied") return "Không đủ quyền ghi whitelist. Hãy kiểm tra Firestore Rules.";
+    }
+    return "Lưu thất bại";
+  };
 
   const load = async () => {
     showLoading("admin-load");
@@ -121,6 +143,7 @@ const AdminPage: React.FC = () => {
     setEmail("");
     setDisplayName("");
     setRole(0);
+    setPassword(generateTemporaryPassword());
     setIsModalOpen(true);
   };
 
@@ -133,13 +156,14 @@ const AdminPage: React.FC = () => {
     setUid(row.id);
     setEmail(row.email || "");
     setDisplayName(row.displayName || "");
+    setPassword("");
     setRole(typeof row.role === "number" ? row.role : 0);
     setIsModalOpen(true);
   };
 
   const handleSave = async () => {
-    if (!editing && !uid.trim()) {
-      message.error("Firebase UID không được để trống");
+    if (!editing && !password.trim()) {
+      message.error("Mật khẩu không được để trống");
       return;
     }
     if (!email || !email.includes("@")) {
@@ -166,14 +190,14 @@ const AdminPage: React.FC = () => {
         });
         message.success("Cập nhật thành công");
       } else {
-        await createAllowedAccount({ uid: uid.trim(), email, displayName, role });
+        await createAllowedAccount({ email, displayName, password, role });
         message.success("Thêm thành công");
       }
       setIsModalOpen(false);
       await load();
     } catch (err) {
       console.error(err);
-      message.error("Lưu thất bại");
+      message.error(getAccountErrorMessage(err));
     } finally {
       setLoading(false);
       closeLoading("admin-save");
@@ -663,35 +687,69 @@ const AdminPage: React.FC = () => {
         <Modal
           title={
             <span style={{ fontSize: 16, fontWeight: 700, color: textColor }}>
-              {editing ? "Chỉnh sửa tài khoản" : "Thêm tài khoản được phép truy cập"}
+              {editing ? "Chỉnh sửa tài khoản" : "Thêm thành viên nội bộ"}
             </span>
           }
           open={isModalOpen}
           onOk={handleSave}
           onCancel={() => setIsModalOpen(false)}
           okButtonProps={{
-            disabled: !email || !displayName || (!editing && !uid.trim()),
+            disabled: !email || !displayName || (!editing && !password.trim()),
             style: { background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 600 },
           }}
           centered
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 12 }}>
             <div>
-              <label htmlFor="admin-uid-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                Firebase UID <span style={{ color: "#ff4d4f" }}>*</span>
-              </label>
-              <Input
-                id="admin-uid-input"
-                placeholder="UID từ Firebase Authentication"
-                required={!editing}
-                value={uid}
-                disabled={!!editing}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUid(e.target.value)}
-                style={{ borderRadius: 6 }}
-              />
-              <div style={{ marginTop: 6, color: muteColor, fontSize: 11 }}>
-                Document ID trong allowedAccounts phải trùng Firebase Auth UID của user.
-              </div>
+              {editing ? (
+                <>
+                  <label htmlFor="admin-uid-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                    Firebase UID
+                  </label>
+                  <Input
+                    id="admin-uid-input"
+                    placeholder="UID từ Firebase Authentication"
+                    value={uid}
+                    disabled
+                    style={{ borderRadius: 6 }}
+                  />
+                  <div style={{ marginTop: 6, color: muteColor, fontSize: 11 }}>
+                    UID này chỉ dùng để tham chiếu khi chỉnh sửa tài khoản.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="admin-password-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
+                    Mật khẩu đăng nhập <span style={{ color: "#ff4d4f" }}>*</span>
+                  </label>
+                  <Space.Compact style={{ width: "100%", marginBottom: 8 }}>
+                    <Input.Password
+                      id="admin-password-input"
+                      placeholder="Mật khẩu cho member nội bộ"
+                      value={password}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                      style={{ borderRadius: 6 }}
+                    />
+                    <Button onClick={() => setPassword(generateTemporaryPassword())}>Tạo lại</Button>
+                    <Button
+                      icon={<CopyOutlined />}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(password);
+                          message.success("Đã sao chép mật khẩu");
+                        } catch {
+                          message.error("Không thể sao chép mật khẩu");
+                        }
+                      }}
+                    >
+                      Sao chép
+                    </Button>
+                  </Space.Compact>
+                  <div style={{ color: muteColor, fontSize: 11 }}>
+                    Admin nhập hoặc tạo mật khẩu rồi sao chép gửi trực tiếp cho member.
+                  </div>
+                </>
+              )}
             </div>
             <div>
               <label htmlFor="admin-email-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>

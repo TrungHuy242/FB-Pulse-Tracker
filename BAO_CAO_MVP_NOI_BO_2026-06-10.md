@@ -23,8 +23,9 @@ Project đã được chuyển sang hướng MVP nội bộ:
   - `role = 0`: Viewer.
 
 ### Admin/Whitelist
-- Admin Page yêu cầu Firebase UID khi tạo whitelist.
-- Document ID của `allowedAccounts` trùng UID Firebase Auth.
+- Admin Page tạo member nội bộ bằng email/password và tự tạo whitelist.
+- Document ID của `allowedAccounts` trùng UID Firebase Auth do app tạo.
+- Form thêm member có nút tạo lại mật khẩu và sao chép mật khẩu cho admin gửi cho member mới.
 - Firestore Rules chặn admin tự xóa hoặc tự đổi role chính mình.
 
 ### Facebook Data
@@ -107,6 +108,20 @@ Checklist thủ công nằm tại:
 ## Ghi Chú Bàn Giao
 
 - Cần deploy Firestore Rules trước khi test scheduled campaign và phân quyền thật.
-- Admin Page chỉ quản lý whitelist, không tạo Firebase Auth user.
+- Admin Page tạo Firebase Auth user + whitelist cùng lúc, không cần Firebase Console cho các member sau first admin.
 - GPM Bridge Agent build được nhưng chưa phải điều kiện pass MVP đầu tiên.
 - Đường MVP an toàn là Excel/CSV bridge thủ công.
+
+## Browser Verification Bổ Sung
+
+Ngày kiểm tra thực tế: 2026-06-10
+
+- Admin login hoạt động với `admin@gmail.com` / `123456`.
+- Modal thêm member mới không còn yêu cầu Firebase UID.
+- Đã tạo thành công một viewer test qua Admin Page bằng email/password.
+- Viewer test login được và vào `/admin` nhưng không còn thấy nút `Thêm thành viên` hoặc `Xóa tất cả Import`.
+- Đã import thành công `27052026.zip`.
+- Preview import hiển thị 4 tài khoản với 50 bình luận và 141 cảm xúc.
+
+Ghi chú kỹ thuật:
+- Cảnh báo dev còn lại chủ yếu từ `echarts-for-react` khi unmount trong môi trường dev; không chặn luồng người dùng.

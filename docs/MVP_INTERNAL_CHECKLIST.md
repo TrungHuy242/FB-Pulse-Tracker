@@ -52,7 +52,7 @@ Mục tiêu: xác nhận FB Pulse Tracker đủ điều kiện MVP nội bộ tr
 
 | Case | Kỳ vọng | Kết quả |
 | --- | --- | --- |
-| Admin thêm viewer test bằng UID | Document ID trùng Firebase Auth UID | |
+| Admin thêm viewer test bằng email/password | App tự tạo Firebase Auth user và whitelist | |
 | Admin sửa displayName/email | Cập nhật thành công | |
 | Admin đổi role viewer 0 -> 1 -> 0 | Cập nhật thành công cho user khác | |
 | Admin tự hạ role chính mình | Bị Firestore Rules từ chối | |

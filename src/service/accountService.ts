@@ -12,15 +12,23 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/service/firebase";
+import {
+  createUserWithEmailAndPassword,
+  deleteUser,
+  getAuth,
+  type Auth,
+  updateProfile,
+} from "firebase/auth";
+import { deleteApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { db, firebaseConfig } from "@/service/firebase";
 import type { AllowedAccount } from "@/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CreateAccountPayload {
-  uid: string;
   email: string;
   displayName: string;
+  password: string;
   role: 0 | 1;
 }
 
@@ -28,6 +36,16 @@ export interface UpdateAccountPayload {
   email: string;
   displayName: string;
   role: 0 | 1;
+}
+
+let secondaryApp: FirebaseApp | null = null;
+
+async function getSecondaryAuth(): Promise<Auth> {
+  if (!secondaryApp) {
+    const existing = getApps().find((item) => item.name === "fbpulse-admin-secondary");
+    secondaryApp = existing ?? initializeApp(firebaseConfig, "fbpulse-admin-secondary");
+  }
+  return getAuth(secondaryApp);
 }
 
 // ── Read operations ──────────────────────────────────────────────────────────
@@ -53,13 +71,38 @@ export const getAllowedAccounts = async (): Promise<AllowedAccount[]> => {
 export const createAllowedAccount = async (
   payload: CreateAccountPayload
 ): Promise<string> => {
-  const uid = payload.uid.trim();
-  await setDoc(doc(db, "allowedAccounts", uid), {
-    email: payload.email,
-    displayName: payload.displayName,
-    role: payload.role,
-  });
-  return uid;
+  const auth = await getSecondaryAuth();
+  const email = payload.email.trim();
+  const displayName = payload.displayName.trim();
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email, payload.password);
+    if (displayName) {
+      await updateProfile(credential.user, { displayName });
+    }
+
+    await setDoc(doc(db, "allowedAccounts", credential.user.uid), {
+      email,
+      displayName,
+      role: payload.role,
+    });
+    return credential.user.uid;
+  } catch (error) {
+    if (auth.currentUser) {
+      try {
+        await deleteUser(auth.currentUser);
+      } catch {
+        // ignore cleanup failure
+      }
+    }
+    throw error;
+  } finally {
+    try {
+      await deleteApp(auth.app);
+    } catch {
+      // ignore cleanup failure
+    }
+    secondaryApp = null;
+  }
 };
 
 /**
