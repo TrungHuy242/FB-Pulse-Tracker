@@ -123,4 +123,5 @@ Các flow admin/viewer có ghi dữ liệu cần seeded Firebase test accounts v
 - [BAO_CAO_TEST_SEEDING.md](BAO_CAO_TEST_SEEDING.md)
 - [DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md](DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md)
 - [docs/GPM_EXCEL_BRIDGE.md](docs/GPM_EXCEL_BRIDGE.md)
+- [docs/SEEDING_MANAGER_GUIDE.md](docs/SEEDING_MANAGER_GUIDE.md)
 - [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md)
