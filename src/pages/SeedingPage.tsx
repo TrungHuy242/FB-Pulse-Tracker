@@ -45,6 +45,7 @@ import { computeSeedingStats } from "@/hooks/useSeedingStats";
 import { useAuth } from "@/contexts/AuthContext";
 import { AiSeedingIdeasModal } from "@/components/AiSeedingIdeasModal";
 import { AiCampaignReportModal } from "@/components/AiCampaignReportModal";
+import { GpmProfilesTab } from "@/components/GpmProfilesTab";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { deleteField, Timestamp } from "firebase/firestore";
@@ -55,6 +56,7 @@ import type {
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const useLegacyProfilesTab = import.meta.env.VITE_USE_LEGACY_SEEDING_PROFILES === "true";
 
 const SeedingDashboardPanel = lazy(() =>
   import("@/components/SeedingDashboardPanel").then((module) => ({
@@ -1819,8 +1821,10 @@ export default function SeedingPage() {
     },
     {
       key: "profiles",
-      label: <span>{TAB_ICONS.profiles} Profiles</span>,
-      children: <ProfilesTab isAdmin={isAdmin} profileStatsMap={profileStatsMap} />,
+      label: <span>{TAB_ICONS.profiles} Profiles GPM</span>,
+      children: useLegacyProfilesTab
+        ? <ProfilesTab isAdmin={isAdmin} profileStatsMap={profileStatsMap} />
+        : <GpmProfilesTab isAdmin={isAdmin} />,
     },
     {
       key: "comments",
@@ -1833,7 +1837,7 @@ export default function SeedingPage() {
     <AppLayout title="Seeding Manager">
       <div style={{ marginBottom: 8, padding: "8px 16px", background: "#fafafa",
         border: "1px solid #dfdfdf", borderRadius: 8, fontSize: 12, color: "#6b6b6b" }}>
-        MVP Seeding dùng Excel/CSV để xuất task và import report thủ công. GPM Bridge Agent là luồng tự động hóa thử nghiệm cho giai đoạn nâng cấp sau.
+        GPM Bridge Agent kết nối trực tiếp GPM Login API — quản lý profiles, mở/đóng browser, đồng bộ Firebase.
       </div>
       <Tabs
         activeKey={activeTab}

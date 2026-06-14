@@ -6,6 +6,22 @@ import viteCompression from "vite-plugin-compression";
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    watch: {
+      // Loại trừ các thư mục lớn/không cần thiết khỏi file watcher
+      // để tránh lỗi ENOMEM khi scandir trên thư mục có nhiều file
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
+        "**/coverage/**",
+        "**/.git/**",
+        "**/.qa-downloads*/**",
+        "**/.qa-seeding*/**",
+      ],
+    },
+  },
   plugins: [
     react(),
     viteCompression({

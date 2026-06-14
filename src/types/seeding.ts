@@ -16,6 +16,12 @@ export interface SeedingProfile {
   status: ProfileStatus;
   note?: string;
   createdAt: Timestamp;
+  fbUid?: string;          // Facebook User ID (UID)
+  fbName?: string;         // Tên hiển thị Facebook
+  fbAvatar?: string;       // URL ảnh đại diện Facebook
+  fbUrl?: string;          // Link trang cá nhân
+  fbIsLoggedIn?: boolean;  // Trạng thái đăng nhập
+  fbSyncedAt?: Timestamp;  // Lần đồng bộ cuối
 }
 
 export interface SeedingCampaign {
