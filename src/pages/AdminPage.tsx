@@ -19,6 +19,7 @@ import {
   Col,
   Statistic,
   Tabs,
+  Result,
 } from "antd";
 import {
   PlusOutlined,
@@ -103,9 +104,14 @@ const AdminPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (user?.role !== 1) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.role]);
 
   // Theme colors
   const textColor = isDark ? "#ffffff" : "#171717";
@@ -436,6 +442,48 @@ const AdminPage: React.FC = () => {
         ]
       : []),
   ];
+
+  if (user?.role !== 1) {
+    return (
+      <main
+        className="admin-page"
+        style={{
+          background: isDark ? "#0f0f11" : "#f3f4f6",
+          minHeight: "100vh",
+          padding: "24px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Card
+          bordered
+          style={{
+            width: "100%",
+            maxWidth: 520,
+            borderRadius: 12,
+            background: isDark ? "#16161a" : "#ffffff",
+            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+          }}
+        >
+          <Result
+            status="403"
+            title={<span style={{ color: textColor }}>Không có quyền quản trị</span>}
+            subTitle={
+              <span style={{ color: muteColor }}>
+                Tài khoản viewer chỉ được xem dữ liệu. Quản lý whitelist và dữ liệu hệ thống chỉ dành cho admin.
+              </span>
+            }
+            extra={
+              <Button type="primary" icon={<HomeOutlined />} onClick={() => navigate("/")}>
+                Về dashboard
+              </Button>
+            }
+          />
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main

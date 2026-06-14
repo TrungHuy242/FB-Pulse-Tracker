@@ -135,6 +135,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
     /** File list cho antd Upload component */
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [progress, setProgress] = useState(0);
+    const [readingZipCount, setReadingZipCount] = useState(0);
     const [importStep, setImportStep] = useState<number>(-1); // -1 = idle
 
     /** Progress tracking cho chunk upload (step 2) */
@@ -234,6 +235,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         return Upload.LIST_IGNORE;
       }
 
+      setReadingZipCount((count) => count + 1);
       showLoading(`reading-zip-${file.name}`);
       try {
         const zip = await JSZip.loadAsync(file);
@@ -433,6 +435,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         return Upload.LIST_IGNORE;
       } finally {
         closeLoading(`reading-zip-${file.name}`);
+        setReadingZipCount((count) => Math.max(0, count - 1));
         setProgress(0);
       }
     };
@@ -633,6 +636,7 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
       setZipJobs([]);
       setFileList([]);
       setProgress(0);
+      setReadingZipCount(0);
       setImportStep(-1);
       setUploadProgress({ current: 0, total: 0, jobName: "" });
       setOpen(false);
@@ -802,10 +806,16 @@ export const ImportZip = forwardRef<FormDrawerHandle, ImportZipProps>(
         open={open}
         onCancel={handleModalClose}
         onOk={handleConfirm}
-        okText={`Import${zipJobs.length > 1 ? ` (${zipJobs.length} tài khoản)` : ""}`}
+        okText={
+          readingZipCount > 0
+            ? "Đang phân tích ZIP..."
+            : `Import${zipJobs.length > 1 ? ` (${zipJobs.length} tài khoản)` : ""}`
+        }
         cancelText="Hủy"
         width={740}
-        okButtonProps={{ disabled: !zipJobs.length }}
+        okButtonProps={{
+          disabled: !zipJobs.length || readingZipCount > 0 || importStep >= 0,
+        }}
         centered
       >
         {/* ── Upload area ── */}

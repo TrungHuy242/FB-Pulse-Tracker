@@ -8,7 +8,7 @@
  *
  * Bridge với GPM Automate qua Excel/CSV (không gọi Facebook, không gọi GPM API).
  */
-import { useState, useEffect, useMemo } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import {
   Tabs, Table, Button, Modal, Input, Select, Form, Tag, Space,
   message, Tooltip, Upload, Dropdown, Empty, Skeleton, Progress,
@@ -44,7 +44,6 @@ import type { SeedingIdea } from "@/service/aiExtendedService";
 import { computeSeedingStats } from "@/hooks/useSeedingStats";
 import { useAuth } from "@/contexts/AuthContext";
 import { AiSeedingIdeasModal } from "@/components/AiSeedingIdeasModal";
-import { SeedingDashboardPanel } from "@/components/SeedingDashboardPanel";
 import { AiCampaignReportModal } from "@/components/AiCampaignReportModal";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -56,6 +55,12 @@ import type {
 
 const { Text } = Typography;
 const { TextArea } = Input;
+
+const SeedingDashboardPanel = lazy(() =>
+  import("@/components/SeedingDashboardPanel").then((module) => ({
+    default: module.SeedingDashboardPanel,
+  }))
+);
 
 // ── Status colours ────────────────────────────────────────────────────────────
 
@@ -1793,11 +1798,13 @@ export default function SeedingPage() {
       key: "dashboard",
       label: <span>{TAB_ICONS.dashboard} Dashboard</span>,
       children: (
-        <SeedingDashboardPanel
-          allTasks={allTasks}
-          campaignsCount={campaigns.length}
-          profilesCount={profiles.length}
-        />
+        <Suspense fallback={<div style={{ padding: 24 }}><Skeleton active paragraph={{ rows: 4 }} /></div>}>
+          <SeedingDashboardPanel
+            allTasks={allTasks}
+            campaignsCount={campaigns.length}
+            profilesCount={profiles.length}
+          />
+        </Suspense>
       ),
     },
     {
