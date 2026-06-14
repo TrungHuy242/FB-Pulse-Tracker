@@ -9,134 +9,142 @@ interface GpmProfileApiItem {
   profileName?: string;
 }
 
+interface GpmPaginatedProfiles {
+  data?: GpmProfileApiItem[];
+  total?: number;
+}
+
 type GpmProfilesResponse =
   | GpmProfileApiItem[]
-  | { data?: GpmProfileApiItem[] };
+  | { data?: GpmProfileApiItem[] | GpmPaginatedProfiles };
 
 export interface GpmStartResponse {
-  success: boolean;
+  success?: boolean;
   message?: string;
   remote_debugging_port?: number;
   data?: {
     remote_debugging_port?: number;
     selenium_remote_debug_address?: string;
+    driver_path?: string;
   };
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function extractProfiles(body: GpmProfilesResponse): GpmProfileApiItem[] {
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body.data)) return body.data;
+  if (body.data && Array.isArray(body.data.data)) return body.data.data;
+  return [];
+}
+
+function parseDebugPort(body: GpmStartResponse): number | null {
+  let debugPort = body.remote_debugging_port ?? body.data?.remote_debugging_port;
+  if (!debugPort && body.data?.selenium_remote_debug_address) {
+    const parts = body.data.selenium_remote_debug_address.split(":");
+    const parsedPort = Number.parseInt(parts[parts.length - 1] ?? "", 10);
+    if (!Number.isNaN(parsedPort)) debugPort = parsedPort;
+  }
+  return debugPort ?? null;
 }
 
 export class GpmClient {
   private apiUrl: string;
 
-  constructor(apiUrl: string = "http://127.0.0.1:19995") {
+  constructor(apiUrl: string = "http://127.0.0.1:9495") {
     this.apiUrl = apiUrl;
   }
 
-  /**
-   * Kiểm tra kết nối tới GPM Login API
-   */
+  private async fetchJson<T>(paths: string[]): Promise<T> {
+    let lastError: unknown = new Error("No GPM endpoint attempted");
+    for (const path of paths) {
+      try {
+        const response = await fetch(`${this.apiUrl}${path}`);
+        if (!response.ok) {
+          lastError = new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+          continue;
+        }
+        return (await response.json()) as T;
+      } catch (err: unknown) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+
   async testConnection(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.apiUrl}/api/v3/profiles?limit=1`);
-      return res.ok;
+      await this.fetchJson<unknown>([
+        "/api/v1/profiles?page=1&page_size=1",
+        "/api/v3/profiles?limit=1",
+      ]);
+      return true;
     } catch {
-      console.error("[GPM Client] Không thể kết nối tới GPM Login API. Hãy đảm bảo ứng dụng GPM Login đang mở và đang lắng nghe tại:", this.apiUrl);
+      console.error(
+        "[GPM Client] Cannot connect to GPM Login API. Check that GPM Login is running at:",
+        this.apiUrl
+      );
       return false;
     }
   }
 
-  /**
-   * Lấy danh sách tất cả profiles từ GPM Login
-   */
   async getProfiles(): Promise<Array<{ id: string; name: string }>> {
-    const url = `${this.apiUrl}/api/v3/profiles?limit=1000`;
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const body = (await response.json()) as GpmProfilesResponse;
-      // Trả về từ body.data (API v3) hoặc body (API v2 / direct list)
-      const list = Array.isArray(body) ? body : body.data ?? [];
-      
-      if (!Array.isArray(list)) {
-        console.warn("[GPM Client] API trả về danh sách không phải mảng:", body);
-        return [];
-      }
+      const body = await this.fetchJson<GpmProfilesResponse>([
+        "/api/v1/profiles?page=1&page_size=1000",
+        "/api/v3/profiles?limit=1000",
+      ]);
+      const list = extractProfiles(body);
 
-      return list.map((item) => ({
-        id: item.id || item.profile_id || item.profileId || "",
-        name: item.name || item.profile_name || item.profileName || "Unnamed Profile",
-      })).filter((p) => p.id);
+      return list
+        .map((item) => ({
+          id: item.id || item.profile_id || item.profileId || "",
+          name: item.name || item.profile_name || item.profileName || "Unnamed Profile",
+        }))
+        .filter((profile) => profile.id);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("[GPM Client] Lỗi khi lấy danh sách profiles từ GPM Login:", message);
+      console.error(
+        "[GPM Client] Failed to load profiles from GPM Login:",
+        getErrorMessage(err)
+      );
       return [];
     }
   }
 
-  /**
-   * Khởi động một profile qua GPM và lấy cổng debug
-   * @param profileId - ID của profile GPM
-   */
   async startProfile(profileId: string): Promise<number> {
-    const url = `${this.apiUrl}/api/v3/profiles/start/${profileId}`;
-    console.log(`[GPM Client] Đang gọi API mở profile: ${profileId}...`);
-    
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const body = (await response.json()) as GpmStartResponse;
-      console.log(`[GPM Client] Kết quả gọi mở Profile:`, JSON.stringify(body));
+    console.log(`[GPM Client] Starting profile: ${profileId}`);
 
-      // Hỗ trợ cả API v2 và v3 (Đọc port trực tiếp hoặc từ data.remote_debugging_port)
-      let debugPort = body.remote_debugging_port || body.data?.remote_debugging_port;
-      
-      // Nếu API trả về địa chỉ selenium debug (ví dụ: localhost:12345), hãy parse lấy port
-      if (!debugPort && body.data?.selenium_remote_debug_address) {
-        const address = body.data.selenium_remote_debug_address; // "127.0.0.1:port" hoặc "localhost:port"
-        const parts = address.split(":");
-        const parsedPort = parseInt(parts[parts.length - 1]);
-        if (!isNaN(parsedPort)) {
-          debugPort = parsedPort;
-        }
-      }
+    const body = await this.fetchJson<GpmStartResponse>([
+      `/api/v1/profiles/start/${encodeURIComponent(profileId)}`,
+      `/api/v3/profiles/start/${encodeURIComponent(profileId)}`,
+    ]);
 
-      if (!debugPort) {
-        throw new Error(`Không tìm thấy remote_debugging_port trong kết quả phản hồi của GPM.`);
-      }
-
-      console.log(`[GPM Client] Profile ${profileId} đã mở thành công ở debug port: ${debugPort}`);
-      return debugPort;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[GPM Client] Lỗi khi mở profile ${profileId}:`, message);
-      throw err;
+    if (body.success === false) {
+      throw new Error(body.message || "GPM returned success=false when starting profile");
     }
+
+    const debugPort = parseDebugPort(body);
+    if (!debugPort) {
+      throw new Error("Cannot find remote_debugging_port in GPM start response");
+    }
+
+    console.log(`[GPM Client] Profile ${profileId} started on debug port ${debugPort}`);
+    return debugPort;
   }
 
-  /**
-   * Đóng một profile đang chạy qua GPM
-   * @param profileId - ID của profile GPM
-   */
   async closeProfile(profileId: string): Promise<boolean> {
-    const url = `${this.apiUrl}/api/v3/profiles/close/${profileId}`;
-    console.log(`[GPM Client] Đang gọi API đóng profile: ${profileId}...`);
-    
+    console.log(`[GPM Client] Closing profile: ${profileId}`);
+
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const body = (await response.json()) as { success: boolean; message?: string };
-      console.log(`[GPM Client] Kết quả gọi đóng Profile:`, JSON.stringify(body));
-      return body.success;
+      const body = await this.fetchJson<{ success?: boolean; message?: string }>([
+        `/api/v1/profiles/stop/${encodeURIComponent(profileId)}`,
+        `/api/v3/profiles/close/${encodeURIComponent(profileId)}`,
+      ]);
+      return body.success !== false;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[GPM Client] Lỗi khi đóng profile ${profileId}:`, message);
+      console.error(`[GPM Client] Failed to close profile ${profileId}:`, getErrorMessage(err));
       return false;
     }
   }

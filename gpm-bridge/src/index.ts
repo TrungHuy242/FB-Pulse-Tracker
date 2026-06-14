@@ -4,14 +4,17 @@ import dotenv from "dotenv";
 import { GpmClient } from "./gpmClient.js";
 import { connectToGpmChrome } from "./browserAgent.js";
 import { runSeedingTask, SeedingTaskPayload } from "./taskRunner.js";
+import { createApiServer } from "./apiServer.js";
+import { scrapeFacebookInfo } from "./facebookScraper.js";
 
 // 1. Tải cấu hình biến môi trường
 dotenv.config();
 
-const GPM_API_URL = process.env.GPM_API_URL || "http://127.0.0.1:19995";
+const GPM_API_URL = process.env.GPM_API_URL || "http://127.0.0.1:9495";
 const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "./firebase-service-account.json";
 const MIN_DELAY = parseInt(process.env.MIN_DELAY_SECONDS || "5");
 const MAX_DELAY = parseInt(process.env.MAX_DELAY_SECONDS || "20");
+const API_SERVER_PORT = parseInt(process.env.API_SERVER_PORT || "3001");
 
 type TaskAction = SeedingTaskPayload["action"];
 
@@ -38,33 +41,41 @@ console.log("🚀 KHỞI ĐỘNG GPM BRIDGE AGENT - TỰ ĐỘNG HÓA SEEDING");
 console.log(`- GPM Login API: ${GPM_API_URL}`);
 console.log(`- Firebase Credentials: ${FIREBASE_SERVICE_ACCOUNT_PATH}`);
 console.log(`- Cấu hình Delay: ${MIN_DELAY}s - ${MAX_DELAY}s`);
+console.log(`- HTTP API Server Port: ${API_SERVER_PORT}`);
 console.log("=========================================================");
 
+// Khởi động HTTP API server để web app có thể gọi GPM API qua bridge (tránh CORS)
+createApiServer(GPM_API_URL, API_SERVER_PORT);
+
 // 2. Khởi tạo Firebase Admin SDK
+let db: admin.firestore.Firestore | null = null;
+let hasFirebase = false;
+
 if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)) {
-  console.error(`❌ Lỗi: Không tìm thấy file Firebase Service Account tại đường dẫn: ${FIREBASE_SERVICE_ACCOUNT_PATH}`);
-  console.error("Vui lòng tải file JSON credentials từ Firebase Console và cấu hình chính xác trong file .env.");
-  process.exit(1);
+  console.warn(`⚠️ Cảnh báo: Không tìm thấy file Firebase Service Account tại đường dẫn: ${FIREBASE_SERVICE_ACCOUNT_PATH}`);
+  console.warn("GPM Bridge sẽ chạy ở chế độ LOCAL ONLY (chỉ hỗ trợ quản lý profile qua API, không chạy task tự động từ Firestore).");
+} else {
+  try {
+    const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf8")) as admin.ServiceAccount;
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    db = admin.firestore();
+    hasFirebase = true;
+    console.log("✅ Kết nối Firebase Admin SDK thành công!");
+  } catch (err: unknown) {
+    console.error("❌ Khởi tạo Firebase Admin SDK thất bại:", getErrorMessage(err));
+    console.warn("GPM Bridge sẽ chạy ở chế độ LOCAL ONLY.");
+  }
 }
 
-try {
-  const serviceAccount = JSON.parse(fs.readFileSync(FIREBASE_SERVICE_ACCOUNT_PATH, "utf8")) as admin.ServiceAccount;
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  console.log("✅ Kết nối Firebase Admin SDK thành công!");
-} catch (err: unknown) {
-  console.error("❌ Khởi tạo Firebase Admin SDK thất bại:", getErrorMessage(err));
-  process.exit(1);
-}
-
-const db = admin.firestore();
 const gpm = new GpmClient(GPM_API_URL);
 
 /**
  * Đồng bộ danh sách profiles từ GPM Login cục bộ lên Firestore
  */
 async function syncGpmProfiles() {
+  if (!hasFirebase || !db) return;
   console.log("\n[Sync] Đang kiểm tra và đồng bộ danh sách profiles từ GPM Login lên Firestore...");
   try {
     const gpmProfiles = await gpm.getProfiles();
@@ -129,13 +140,13 @@ async function syncGpmProfiles() {
   }
 }
 
-// Đồng bộ ngay khi khởi động
-syncGpmProfiles().catch(console.error);
-
-// Đồng bộ định kỳ mỗi 2 phút
-setInterval(() => {
+// Đồng bộ ngay khi khởi động và định kỳ nếu có Firebase
+if (hasFirebase) {
   syncGpmProfiles().catch(console.error);
-}, 120000);
+  setInterval(() => {
+    syncGpmProfiles().catch(console.error);
+  }, 120000);
+}
 
 // 3. Khởi tạo hàng đợi và xử lý tuần tự (Sequential Queue)
 const taskQueue: string[] = []; // Chứa danh sách Task ID đang chờ xử lý
@@ -158,6 +169,7 @@ async function processQueue() {
   console.log(`\n[Queue] ----------------------------------------------------`);
   console.log(`[Queue] Bắt đầu xử lý Task ID: ${taskId}`);
   
+  if (!db) return;
   const taskRef = db.collection("seedingTasks").doc(taskId);
   let profileId = "";
 
@@ -201,6 +213,32 @@ async function processQueue() {
     // Bước 2: Gọi GPM Login để mở Profile và lấy cổng debug
     console.log(`[Queue] Bước 2: Khởi động Chrome profile qua GPM...`);
     const debugPort = await gpm.startProfile(profileId);
+
+    // Tự động kiểm tra và cào thông tin Facebook của profile khi chạy task
+    if (hasFirebase && db) {
+      try {
+        console.log(`[Queue] Đang tự động kiểm tra thông tin Facebook cho profile: ${profileId}...`);
+        const fbInfo = await scrapeFacebookInfo(debugPort);
+        if (fbInfo && fbInfo.isLoggedIn) {
+          const profilesColl = db.collection("seedingProfiles");
+          const querySnap = await profilesColl.where("profileId", "==", profileId).get();
+          if (!querySnap.empty) {
+            const docId = querySnap.docs[0].id;
+            await profilesColl.doc(docId).update({
+              fbUid: fbInfo.fbUid,
+              fbName: fbInfo.fbName,
+              fbAvatar: fbInfo.fbAvatar,
+              fbUrl: fbInfo.fbUrl,
+              fbIsLoggedIn: true,
+              fbSyncedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`[Queue] ✅ Đã cập nhật thông tin Facebook của profile: ${fbInfo.fbName}`);
+          }
+        }
+      } catch (fbErr: unknown) {
+        console.error(`[Queue] ⚠️ Không thể cào thông tin Facebook:`, fbErr instanceof Error ? fbErr.message : String(fbErr));
+      }
+    }
 
     // Bước 3: Kết nối Puppeteer vào trình duyệt
     console.log(`[Queue] Bước 3: Kết nối Puppeteer vào Chrome...`);
@@ -291,37 +329,40 @@ async function processQueue() {
 }
 
 // 4. Lắng nghe Firestore Seeding Tasks có trạng thái "pending"
-console.log("\n[Firestore] Đang thiết lập listener lắng nghe các tasks có trạng thái 'pending'...");
+let unsubscribe: (() => void) | null = null;
 
-const unsubscribe = db
-  .collection("seedingTasks")
-  .where("status", "==", "pending")
-  .onSnapshot(
-    (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" || change.type === "modified") {
-          const taskId = change.doc.id;
-          
-          // Chỉ đưa vào hàng đợi nếu chưa có trong hàng đợi và chưa được xử lý
-          if (!taskQueue.includes(taskId) && !activeProcessingIds.has(taskId)) {
-            console.log(`[Firestore] Phát hiện task 'pending' mới: ${taskId}. Đang đưa vào hàng đợi...`);
-            taskQueue.push(taskId);
+if (hasFirebase && db) {
+  console.log("\n[Firestore] Đang thiết lập listener lắng nghe các tasks có trạng thái 'pending'...");
+  unsubscribe = db
+    .collection("seedingTasks")
+    .where("status", "==", "pending")
+    .onSnapshot(
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" || change.type === "modified") {
+            const taskId = change.doc.id;
+            
+            // Chỉ đưa vào hàng đợi nếu chưa có trong hàng đợi và chưa được xử lý
+            if (!taskQueue.includes(taskId) && !activeProcessingIds.has(taskId)) {
+              console.log(`[Firestore] Phát hiện task 'pending' mới: ${taskId}. Đang đưa vào hàng đợi...`);
+              taskQueue.push(taskId);
+            }
           }
-        }
-      });
+        });
 
-      // Kích hoạt xử lý hàng đợi
-      processQueue();
-    },
-    (error) => {
-      console.error("[Firestore] Lỗi lắng nghe realtime snapshot:", error);
-    }
-  );
+        // Kích hoạt xử lý hàng đợi
+        processQueue();
+      },
+      (error) => {
+        console.error("[Firestore] Lỗi lắng nghe realtime snapshot:", error);
+      }
+    );
+}
 
 // Đăng ký dọn dẹp khi nhận tín hiệu kết thúc
 process.on("SIGINT", () => {
   console.log("\n👋 Đang tắt Bridge Agent...");
-  unsubscribe();
+  if (unsubscribe) unsubscribe();
   process.exit(0);
 });
 
@@ -329,6 +370,7 @@ process.on("SIGINT", () => {
  * Quét định kỳ và kích hoạt các chiến dịch đã đến lịch chạy hẹn giờ (scheduled)
  */
 async function checkAndRunScheduledCampaigns() {
+  if (!db) return;
   const now = admin.firestore.Timestamp.now();
   console.log(`[Schedule] Đang kiểm tra lịch chạy chiến dịch tại: ${new Date().toLocaleTimeString()}...`);
   try {
@@ -382,5 +424,7 @@ async function checkAndRunScheduledCampaigns() {
   }
 }
 
-// Bắt đầu loop kiểm tra hẹn giờ chạy chiến dịch mỗi 30 giây
-setInterval(checkAndRunScheduledCampaigns, 30000);
+// Bắt đầu loop kiểm tra hẹn giờ chạy chiến dịch mỗi 30 giây nếu có Firebase
+if (hasFirebase) {
+  setInterval(checkAndRunScheduledCampaigns, 30000);
+}
