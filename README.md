@@ -1,127 +1,178 @@
-# FB Pulse Tracker
+# 📊 FB Pulse Tracker
 
-FB Pulse Tracker là ứng dụng web nội bộ để import dữ liệu Facebook ZIP, xem dashboard/analytics, phân tích bình luận và vận hành workflow Seeding qua Excel/CSV.
+**FB Pulse Tracker** là một nền tảng quản trị và phân tích dữ liệu Facebook nội bộ kết hợp với hệ thống **Seeding Manager** tự động hóa thông qua công cụ **GPM Login**. Hệ thống được thiết kế theo mô hình MVP (Minimum Viable Product) để phục vụ cho các chiến dịch seeding và phân tích hiệu quả tương tác một cách tối ưu và an toàn.
 
-Trạng thái MVP nội bộ hiện tại:
-- Không có đăng ký công khai.
-- Chỉ user có document `allowedAccounts/{firebaseAuthUid}` mới vào được app.
-- Role MVP chỉ có `0` viewer và `1` admin.
-- Seeding MVP dùng Excel/CSV bridge thủ công. `gpm-bridge/` là agent tự động hóa thử nghiệm cho giai đoạn nâng cấp sau.
-- AI Gemini không được chặn workflow. Khi Gemini/API lỗi, app dùng fallback nội bộ hoặc hiển thị lỗi rõ ràng.
-- Unit test target hiện tại: 291 tests.
+---
 
-## Chức Năng MVP
+## 🏗️ Kiến Trúc Hệ Thống
 
-### Auth Nội Bộ
-- Login bằng email/password Firebase Auth.
-- Không hiển thị register, Google login, forgot password hoặc demo account.
-- User đã đăng nhập nhưng chưa được whitelist sẽ bị sign out và thấy thông báo liên hệ admin.
-- First admin bootstrap làm thủ công bằng Firebase Console.
+Dự án được xây dựng dựa trên mô hình Client-Agent kết nối qua Firebase Cloud:
 
-### Phân Quyền
-| Role | Quyền |
-| --- | --- |
-| `role = 1` Admin | Import ZIP, xóa/import dữ liệu, quản lý whitelist, tạo/sửa/xóa seeding profile/campaign/task/comment, export/import report |
-| `role = 0` Viewer | Xem dashboard, imports, comments, analytics, seeding dashboard/report; không thấy thao tác ghi chính |
-
-### Workflow Dữ Liệu Facebook
-- Import Facebook ZIP.
-- Quản lý imports, xem chi tiết comments/reactions.
-- Export dữ liệu comments/imports sang CSV/JSON/XLSX.
-- Dashboard overview và analytics theo thời gian, account, sentiment, reaction.
-
-### Workflow Seeding MVP
-- Quản lý GPM profiles.
-- Quản lý campaign, task và thư viện comment.
-- Tạo task thủ công hoặc từ AI Planner cho admin.
-- Export task CSV/XLSX để chạy thủ công qua GPM.
-- Import report CSV/XLSX sau khi chạy để cập nhật trạng thái task.
-- Campaign hỗ trợ trạng thái `draft`, `active`, `paused`, `completed`, `scheduled`.
-
-### Admin
-- Danh sách whitelist `allowedAccounts`.
-- Tạo member nội bộ bằng email/password và tự tạo whitelist.
-- Có nút tạo lại và sao chép mật khẩu khi thêm member mới.
-- Sửa email/displayName/role.
-- Không cho admin tự xóa hoặc tự hạ quyền chính mình ở Firestore Rules.
-
-## Bootstrap First Admin
-
-1. Vào Firebase Console.
-2. Bật Authentication provider `Email/Password`.
-3. Tạo user admin đầu tiên trong Firebase Auth.
-4. Copy UID của user đó.
-5. Tạo document Firestore:
-
-```text
-collection: allowedAccounts
-document id: <Firebase Auth UID>
-
-email: admin@company.com
-displayName: Admin
-role: 1
+```mermaid
+graph TD
+    Client[React Frontend Web App] <-->|Auth & Firestore| Firebase[Firebase Cloud Services]
+    Agent[GPM Bridge Agent - Local Node.js] <-->|Firebase Admin SDK| Firebase
+    Agent <-->|Express Bypass CORS| Client
+    Agent <-->|Puppeteer Core| Chrome[GPM Chrome Profiles]
+    Agent <-->|GPM Local API: Port 9495| GPM[GPM Login App]
 ```
 
-6. Deploy Firestore Rules:
+1. **Frontend Web App (Thư mục gốc)**: 
+   - Sử dụng React 19, Vite, TypeScript, Ant Design (v6) và ECharts.
+   - Kết nối trực tiếp đến Firebase Client SDK (Auth, Firestore).
+   - Cho phép import dữ liệu Facebook ZIP, xem dashboard, biểu đồ phân tích cảm xúc (Sentiment) & ý định (Intent) từ AI, và lên lịch seeding.
+2. **GPM Bridge Agent (Thư mục `/gpm-bridge`)**:
+   - Sử dụng Node.js, Express, Puppeteer Core và Firebase Admin SDK.
+   - Đóng vai trò là tác nhân chạy ngầm (agent) tại máy local của kỹ thuật viên.
+   - Cung cấp HTTP API Server (port `3001`) làm cầu nối giúp Frontend giao tiếp trực tiếp với GPM Login API nội bộ (mặc định port `9495`), loại bỏ hoàn toàn rào cản CORS.
+   - Lắng nghe realtime các seeding task trạng thái `pending` từ Firestore, tự động khởi chạy profile Chrome tương ứng của GPM, sử dụng Puppeteer để thực hiện seeding tự động (comment, reaction) và cập nhật trạng thái lên Firestore.
+
+---
+
+## ✨ Các Tính Năng Core (MVP)
+
+### 1. Phân Quyền & Quản Trị Whitelist (Internal Auth Only)
+* **Không Đăng Ký Công Khai**: Đăng nhập bằng Email/Password Firebase. Không hỗ trợ đăng ký công khai hay liên kết mạng xã hội để bảo mật dữ liệu.
+* **Cơ Chế Whitelist (`allowedAccounts`)**: Chỉ những tài khoản có ID được thêm trước vào Firestore collection `allowedAccounts` mới có quyền truy cập. User lạ đăng nhập sẽ bị tự động đăng xuất và thông báo liên hệ Admin.
+* **Hai Phân Quyền Chính**:
+  - **Viewer (role = 0)**: Chỉ xem Dashboard, Imports, Comments, Analytics, Seeding Dashboard & Reports. Không có nút thao tác ghi (Import, Xóa, Tạo seeding, v.v.).
+  - **Admin (role = 1)**: Toàn quyền CRUD dữ liệu, quản lý whitelist, tạo tài khoản member nội bộ (tự động thêm vào whitelist và Firebase Auth), tạo chiến dịch/nhiệm vụ seeding. Luật Firestore cấm Admin tự xóa hoặc hạ quyền của chính mình để tránh mất quyền quản trị gốc.
+
+### 2. Quản Lý & Phân Tích Dữ Liệu Facebook ZIP
+* **Import Facebook ZIP**: Tải trực tiếp file ZIP xuất ra từ Facebook (Comments & Reactions) lên hệ thống.
+* **Bộ Lọc Phân Tích Thông Minh**: Phân loại comment theo cảm xúc (Sentiment: Tích cực, Tiêu cực, Trung lập) và ý định (AI Intent) bằng mô hình AI Gemini. Fallback nội bộ sẽ tự động kích hoạt nếu API Gemini lỗi để đảm bảo luồng công việc không bị gián đoạn.
+* **Xuất Dữ Liệu**: Hỗ trợ export dữ liệu đã phân tích ra các định dạng CSV, JSON và Microsoft Excel (XLSX).
+
+### 3. Module Seeding Manager & Tích Hợp GPM Login
+* **Quản Lý Profiles GPM**: Đồng bộ danh sách tài khoản GPM Login cục bộ lên Firestore. Xem chi tiết thông số profile (Browser, OS, Proxy, Group) và điều khiển mở/đóng profile trực tiếp từ giao diện web.
+* **Tự Động Hóa Seeding Task**:
+  - Khi một task seeding được chuyển sang trạng thái `pending`, **GPM Bridge Agent** sẽ tự động khóa task (`running`), gọi GPM mở profile Chrome thích hợp.
+  - Kết nối Puppeteer để tự động đi đến link bài viết, thực hiện viết bình luận hoặc thả tim/like theo nội dung được yêu cầu.
+  - Cập nhật trạng thái thành công (`success`) hoặc tự động thử lại (`retry` tối đa 3 lần sau mỗi 10 giây nếu có lỗi) lên Firestore.
+* **AI Planner**: Hỗ trợ Admin lập kế hoạch kịch bản seeding tự động từ Prompt. AI sẽ tự động phân tích mục tiêu, sinh ra nội dung seeding, đề xuất khoảng nghỉ (delay) an toàn để tránh bị Facebook quét spam.
+* **Chiến Dịch Hẹn Giờ (Scheduled Campaigns)**: Cho phép lên lịch chạy seeding vào khung giờ vàng. Bridge Agent sẽ tự động quét định kỳ mỗi 30 giây để kích hoạt chiến dịch đến hạn.
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
+
+### 1. Chuẩn Bị File Cấu Hình Firebase Service Account
+Để **GPM Bridge Agent** có thể lắng nghe task và đồng bộ profile với Firestore, bạn cần tạo file cấu hình admin:
+1. Vào Firebase Console -> Project Settings -> Service Accounts.
+2. Nhấp chọn **Generate new private key** (Tạo khóa riêng tư mới) và tải file `.json` về.
+3. Đổi tên file thành `firebase-service-account.json` và lưu vào thư mục gốc của dự án `/` (hoặc trong thư mục `/gpm-bridge` tùy vào biến môi trường cấu hình).
+
+### 2. Cài Đặt Frontend Web App (Thư mục gốc)
+
+1. Tạo file `.env` từ file mẫu:
+   ```bash
+   cp .env.example .env
+   ```
+2. Cập nhật các thông số cấu hình Firebase và Gemini API Key trong file `.env`:
+   ```env
+   VITE_FIREBASE_API_KEY=your_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_GEMINI_API_KEY=your_gemini_key
+   VITE_GEMINI_MODEL=gemini-2.0-flash
+   ```
+3. Cài đặt các thư viện dependencies và chạy máy chủ phát triển (Vite Dev Server):
+   ```bash
+   npm install
+   npm run dev
+   ```
+   *Frontend sẽ chạy tại địa chỉ: [http://localhost:5173](http://localhost:5173)*
+
+### 3. Cài Đặt GPM Bridge Agent (Thư mục `/gpm-bridge`)
+
+1. Di chuyển vào thư mục `/gpm-bridge` và sao chép cấu hình môi trường:
+   ```bash
+   cd gpm-bridge
+   cp .env.example .env
+   ```
+2. Cập nhật các biến trong file `/gpm-bridge/.env`:
+   ```env
+   # API GPM Login chạy ở local máy bạn (mặc định GPM chạy port 9495 hoặc 3000)
+   GPM_API_URL=http://127.0.0.1:9495
+   
+   # Đường dẫn tới file credentials Firebase Admin SDK đã tải ở Bước 1
+   FIREBASE_SERVICE_ACCOUNT_PATH=../firebase-service-account.json
+   
+   # Thời gian delay ngẫu nhiên giữa các hành động seeding trên trình duyệt (giảm thiểu quét spam)
+   MIN_DELAY_SECONDS=5
+   MAX_DELAY_SECONDS=20
+   
+   # Port chạy HTTP API của Bridge Agent
+   API_SERVER_PORT=3001
+   ```
+3. Cài đặt dependencies và chạy ở chế độ dev:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   *Bridge Agent sẽ chạy tại địa chỉ: [http://localhost:3001](http://localhost:3001)*
+
+---
+
+## 🔑 Thiết Lập Admin Đầu Tiên (Bootstrap Admin)
+
+Vì hệ thống không hỗ trợ đăng ký tài khoản tự do, tài khoản Admin đầu tiên bắt buộc phải khởi tạo thủ công:
+
+1. Vào **Firebase Console** -> **Authentication**, bật nhà cung cấp đăng nhập **Email/Password**.
+2. Nhấp chọn **Add user**, nhập Email và Password, sau đó nhấn Save. Copy lại chuỗi **User UID** của tài khoản vừa tạo.
+3. Chuyển sang **Firestore Database**, tạo một collection mới có tên là `allowedAccounts`.
+4. Tạo một tài liệu (document) mới trong collection đó với:
+   - **Document ID**: Dán chuỗi **User UID** vừa copy ở trên vào.
+   - Các trường dữ liệu (fields):
+     ```text
+     email: admin@company.com (string)
+     displayName: Super Admin (string)
+     role: 1 (number)
+     ```
+5. Deploy luật bảo mật Firestore Rules lên Firebase:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+6. Đăng nhập vào trang web `/login` bằng tài khoản Admin này. Lúc này bạn có thể vào trang **Admin** để trực tiếp tạo thêm các tài khoản Viewer hoặc Admin khác một cách dễ dàng mà không cần thao tác thủ công trên console nữa.
+
+---
+
+## 🛡️ Kiểm Tra Chất Lượng Code & Kiểm Thử (QA Checklist)
+
+Trước khi đóng gói hoặc bàn giao dự án lên môi trường Staging/Production, bạn bắt buộc phải kiểm tra qua các bước sau để đảm bảo chất lượng:
 
 ```bash
-firebase deploy --only firestore:rules
-```
-
-Sau khi admin đầu tiên đăng nhập, admin có thể tạo member nội bộ ngay trong Admin Page bằng email/password. App sẽ tạo Firebase Auth user và whitelist cùng lúc. First admin vẫn phải bootstrap thủ công.
-
-## Firestore Rules
-
-Rules chính:
-- `allowedAccounts`: user chỉ đọc document của chính mình; admin đọc list và CRUD user.
-- Không cho self-create account từ client.
-- Không cho admin tự xóa hoặc tự đổi role chính mình.
-- `imports`, `commentChunks`, `reactionChunks`, `seedingProfiles`, `seedingCampaigns`, `seedingTasks`, `seedingComments`: whitelisted user được đọc, chỉ admin được ghi.
-- Collection chưa khai báo bị default deny.
-
-## Cài Đặt
-
-```bash
-npm install
-npm run dev
-```
-
-App chạy tại [http://localhost:5173](http://localhost:5173).
-
-`.env` cần các biến Vite Firebase:
-
-```env
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-VITE_GEMINI_API_KEY=
-VITE_GEMINI_MODEL=gemini-2.0-flash
-```
-
-## Kiểm Tra Bắt Buộc Trước Bàn Giao
-
-```bash
+# 1. Kiểm tra cú pháp và chất lượng mã nguồn (Linter)
 npm run lint
+
+# 2. Chạy toàn bộ 291 bài test Unit Test cốt lõi
 npm test -- --runInBand
+
+# 3. Biên dịch thử nghiệm Frontend React
 npm run build
+
+# 4. Chạy kiểm thử tự động End-to-End với Playwright (nếu có cấu hình)
 npm run test:e2e
+
+# 5. Build mã nguồn Cloud Functions (nếu dùng)
 npm --prefix functions run build
+
+# 6. Biên dịch TypeScript cho GPM Bridge Agent
 npm --prefix gpm-bridge run build
 ```
 
-Playwright E2E hiện có smoke tests không phụ thuộc credential thật:
-- Login page là internal-only.
-- User chưa auth bị redirect từ `/imports`, `/comments`, `/analytics`, `/seeding`, `/admin` về `/login`.
+---
 
-Các flow admin/viewer có ghi dữ liệu cần seeded Firebase test accounts và được test theo checklist thủ công tại [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md).
+## 📂 Tài Liệu Tham Khảo Thêm
 
-## Tài Liệu Liên Quan
+Hệ thống có sẵn các tài liệu hướng dẫn vận hành chi tiết đặt tại thư mục `/docs` hoặc file báo cáo định kỳ:
+* **Chi tiết kiểm thử QA**: [BAO_CAO_ANTIGRAVITY_QA_2026-06-14T1614.md](BAO_CAO_ANTIGRAVITY_QA_2026-06-14T1614.md)
+* **Báo cáo Module GPM Profiles**: [BAO_CAO_GPM_PROFILES_MODULE_2026-06-14.md](BAO_CAO_GPM_PROFILES_MODULE_2026-06-14.md)
+* **Tài liệu thiết kế gốc**: [DESIGN.md](DESIGN.md)
+* **Hướng dẫn vận hành Seeding**: [docs/SEEDING_MANAGER_GUIDE.md](docs/SEEDING_MANAGER_GUIDE.md)
+* **Sổ tay kết nối Excel/CSV Bridge**: [docs/GPM_EXCEL_BRIDGE.md](docs/GPM_EXCEL_BRIDGE.md)
+* **Danh mục kiểm thử nội bộ**: [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md)
 
-- [BAO_CAO_TEST_SEEDING.md](BAO_CAO_TEST_SEEDING.md)
-- [DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md](DANH_GIA_TONG_QUAN_PROJECT_2026-06-09.md)
-- [docs/GPM_EXCEL_BRIDGE.md](docs/GPM_EXCEL_BRIDGE.md)
-- [docs/SEEDING_MANAGER_GUIDE.md](docs/SEEDING_MANAGER_GUIDE.md)
-- [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md)
