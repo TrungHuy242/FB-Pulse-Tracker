@@ -6,6 +6,12 @@ import { connectToGpmChrome } from "./browserAgent.js";
 import { runSeedingTask, SeedingTaskPayload } from "./taskRunner.js";
 import { createApiServer } from "./apiServer.js";
 import { scrapeFacebookInfo } from "./facebookScraper.js";
+import {
+  envBoolean,
+  envInteger,
+  GpmProcessManager,
+  parseStartupArgs,
+} from "./gpmProcess.js";
 
 // 1. Tải cấu hình biến môi trường
 dotenv.config();
@@ -15,6 +21,13 @@ const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH 
 const MIN_DELAY = parseInt(process.env.MIN_DELAY_SECONDS || "5");
 const MAX_DELAY = parseInt(process.env.MAX_DELAY_SECONDS || "20");
 const API_SERVER_PORT = parseInt(process.env.API_SERVER_PORT || "3001");
+const GPM_AUTO_START = envBoolean("GPM_AUTO_START", true);
+const GPM_AUTO_START_ON_BRIDGE_START = envBoolean("GPM_AUTO_START_ON_BRIDGE_START", true);
+const GPM_EXECUTABLE_PATH = process.env.GPM_EXECUTABLE_PATH;
+const GPM_STARTUP_TIMEOUT_MS = envInteger("GPM_STARTUP_TIMEOUT_MS", 45000);
+const GPM_STARTUP_POLL_INTERVAL_MS = envInteger("GPM_STARTUP_POLL_INTERVAL_MS", 1500);
+const GPM_HTTP_PORT_FILE = process.env.GPM_HTTP_PORT_FILE;
+const GPM_STARTUP_ARGS = parseStartupArgs(process.env.GPM_STARTUP_ARGS);
 
 type TaskAction = SeedingTaskPayload["action"];
 
@@ -39,13 +52,40 @@ function getErrorMessage(err: unknown): string {
 console.log("=========================================================");
 console.log("🚀 KHỞI ĐỘNG GPM BRIDGE AGENT - TỰ ĐỘNG HÓA SEEDING");
 console.log(`- GPM Login API: ${GPM_API_URL}`);
+console.log(`- GPM Auto Start: ${GPM_AUTO_START ? "enabled" : "disabled"}`);
+console.log(`- GPM Executable: ${GPM_EXECUTABLE_PATH || "auto-detect"}`);
 console.log(`- Firebase Credentials: ${FIREBASE_SERVICE_ACCOUNT_PATH}`);
 console.log(`- Cấu hình Delay: ${MIN_DELAY}s - ${MAX_DELAY}s`);
 console.log(`- HTTP API Server Port: ${API_SERVER_PORT}`);
 console.log("=========================================================");
 
 // Khởi động HTTP API server để web app có thể gọi GPM API qua bridge (tránh CORS)
-createApiServer(GPM_API_URL, API_SERVER_PORT);
+const gpmRuntime = new GpmProcessManager({
+  apiUrl: GPM_API_URL,
+  autoStart: GPM_AUTO_START,
+  executablePath: GPM_EXECUTABLE_PATH,
+  startupArgs: GPM_STARTUP_ARGS,
+  startupTimeoutMs: GPM_STARTUP_TIMEOUT_MS,
+  pollIntervalMs: GPM_STARTUP_POLL_INTERVAL_MS,
+  httpPortFile: GPM_HTTP_PORT_FILE,
+});
+
+createApiServer(gpmRuntime, API_SERVER_PORT);
+
+if (GPM_AUTO_START && GPM_AUTO_START_ON_BRIDGE_START) {
+  gpmRuntime
+    .ensureReady("bridge startup")
+    .then((result) => {
+      if (result.ok) {
+        console.log(`[GPM Process] Ready at ${result.apiUrl}${result.started ? " after auto-start" : ""}.`);
+      } else {
+        console.warn(`[GPM Process] Not ready: ${result.message}`);
+      }
+    })
+    .catch((err: unknown) => {
+      console.warn("[GPM Process] Auto-start check failed:", getErrorMessage(err));
+    });
+}
 
 // 2. Khởi tạo Firebase Admin SDK
 let db: admin.firestore.Firestore | null = null;
@@ -69,7 +109,7 @@ if (!fs.existsSync(FIREBASE_SERVICE_ACCOUNT_PATH)) {
   }
 }
 
-const gpm = new GpmClient(GPM_API_URL);
+const gpm = new GpmClient(gpmRuntime);
 
 /**
  * Đồng bộ danh sách profiles từ GPM Login cục bộ lên Firestore

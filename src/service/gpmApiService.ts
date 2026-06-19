@@ -89,7 +89,7 @@ export async function getGpmBridgeHealth(): Promise<GpmBridgeHealth> {
 export async function checkGpmBridgeHealth(): Promise<boolean> {
   try {
     const health = await fetch(`${BRIDGE_URL}/health`, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(45000),
     });
     if (!health.ok) return false;
     const body = (await health.json().catch(() => null)) as GpmBridgeHealth | null;
@@ -155,7 +155,15 @@ export async function getGpmProfiles(
   const res = await gpmGet<GpmApiResponse<GpmListPayload<GpmProfile>> | GpmListPayload<GpmProfile>>(
     `/gpm/profiles${suffix}`
   );
-  return normalizeList<GpmProfile>(res);
+  const normalized = normalizeList<GpmProfile>(res);
+  const runningIds = new Set(await getRunningGpmProfileIds());
+  return {
+    ...normalized,
+    data: normalized.data.map((profile) => ({
+      ...profile,
+      is_running: runningIds.has(profile.id),
+    })),
+  };
 }
 
 export async function getGpmProfileById(id: string): Promise<GpmProfile> {
@@ -213,6 +221,19 @@ export async function startGpmProfile(
 export async function stopGpmProfile(id: string): Promise<void> {
   const res = await gpmGet<GpmApiResponse<unknown>>(`/gpm/profiles/stop/${id}`);
   if (res.success === false) throw new Error(res.message || "Dong profile that bai");
+}
+
+/**
+ * Lấy danh sách profile IDs đang chạy browser thực tế từ bridge.
+ * Bridge tracking trong memory, cập nhật khi start/stop.
+ */
+export async function getRunningGpmProfileIds(): Promise<string[]> {
+  try {
+    const res = await gpmGet<{ success: boolean; data: string[] }>("/gpm/profiles/running");
+    return Array.isArray(res.data) ? res.data : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getGpmProxies(): Promise<GpmProxy[]> {

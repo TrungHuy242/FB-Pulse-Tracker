@@ -217,6 +217,23 @@
           font-weight: 700;
         }
       }
+
+      .nav-subitems {
+        margin: 2px 0 6px 12px;
+        padding-left: 10px;
+        border-left: 1px solid var(--sidebar-border);
+
+        .nav-subitem {
+          min-height: 30px;
+          padding: 6px 10px;
+          font-size: 12.5px;
+
+          .nav-icon {
+            font-size: 13px;
+            width: 16px;
+          }
+        }
+      }
     }
 
     // ── Footer (user) ─────────────────────────────────────────────────────────
@@ -377,4 +394,3 @@
     pointer-events: none !important;
   }
 }
-

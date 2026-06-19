@@ -24,6 +24,9 @@ import {
   CloseOutlined,
   UserOutlined,
   PlayCircleOutlined,
+  RobotOutlined,
+  ProfileOutlined,
+  CopyOutlined,
   SunOutlined,
   MoonOutlined,
 } from "@ant-design/icons";
@@ -39,6 +42,7 @@ interface NavItemConfig {
   path: string;
   adminOnly?: boolean;
   badge?: string;
+  children?: NavItemConfig[];
 }
 
 const NAV_ITEMS: NavItemConfig[] = [
@@ -46,7 +50,18 @@ const NAV_ITEMS: NavItemConfig[] = [
   { key: "imports",   label: "Imports",          icon: <ImportOutlined />,       path: "/imports" },
   { key: "analytics", label: "Analytics",        icon: <LineChartOutlined />,    path: "/analytics" },
   { key: "comments",  label: "Bình luận",        icon: <CommentOutlined />,      path: "/comments" },
-  { key: "seeding",   label: "Seeding Manager",  icon: <PlayCircleOutlined />,   path: "/seeding" },
+  {
+    key: "seeding",
+    label: "Seeding Manager",
+    icon: <PlayCircleOutlined />,
+    path: "/seeding",
+    children: [
+      { key: "seeding-campaigns", label: "Chiến dịch", icon: <PlayCircleOutlined />, path: "/seeding/campaigns" },
+      { key: "seeding-planner", label: "AI Planner", icon: <RobotOutlined />, path: "/seeding/planner" },
+      { key: "seeding-profiles", label: "Profiles GPM", icon: <ProfileOutlined />, path: "/seeding/profiles" },
+      { key: "seeding-comments", label: "Thư viện bình luận", icon: <CopyOutlined />, path: "/seeding/comments" },
+    ],
+  },
 ];
 
 const BOTTOM_NAV_ITEMS: NavItemConfig[] = [
@@ -105,17 +120,34 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
   const renderNavItem = (item: NavItemConfig) => {
     if (item.adminOnly && user?.role !== 1) return null;
     return (
-      <NavLink
-        key={item.key}
-        to={item.path}
-        className={`nav-item ${isActive(item.path) ? "active" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-        style={{ textDecoration: "none" }}
-      >
-        <span className="nav-icon">{item.icon}</span>
-        <span>{item.label}</span>
-        {item.badge && <span className="nav-badge">{item.badge}</span>}
-      </NavLink>
+      <React.Fragment key={item.key}>
+        <NavLink
+          to={item.path}
+          className={`nav-item ${isActive(item.path) ? "active" : ""}`}
+          onClick={() => setSidebarOpen(false)}
+          style={{ textDecoration: "none" }}
+        >
+          <span className="nav-icon">{item.icon}</span>
+          <span>{item.label}</span>
+          {item.badge && <span className="nav-badge">{item.badge}</span>}
+        </NavLink>
+        {item.children && isActive(item.path) && (
+          <div className="nav-subitems">
+            {item.children.map((child) => (
+              <NavLink
+                key={child.key}
+                to={child.path}
+                className={`nav-item nav-subitem ${isActive(child.path) ? "active" : ""}`}
+                onClick={() => setSidebarOpen(false)}
+                style={{ textDecoration: "none" }}
+              >
+                <span className="nav-icon">{child.icon}</span>
+                <span>{child.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </React.Fragment>
     );
   };
 

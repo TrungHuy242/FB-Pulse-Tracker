@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import type { GpmRuntime } from "./gpmProcess.js";
 
 interface GpmProfileApiItem {
   id?: string;
@@ -51,17 +52,35 @@ function parseDebugPort(body: GpmStartResponse): number | null {
 }
 
 export class GpmClient {
-  private apiUrl: string;
+  private apiUrl: string | null;
+  private runtime: GpmRuntime | null;
 
-  constructor(apiUrl: string = "http://127.0.0.1:9495") {
-    this.apiUrl = apiUrl;
+  constructor(apiUrlOrRuntime: string | GpmRuntime = "http://127.0.0.1:9495") {
+    if (typeof apiUrlOrRuntime === "string") {
+      this.apiUrl = apiUrlOrRuntime;
+      this.runtime = null;
+    } else {
+      this.apiUrl = null;
+      this.runtime = apiUrlOrRuntime;
+    }
+  }
+
+  private getApiUrl(): string {
+    return this.runtime ? this.runtime.getApiUrl() : this.apiUrl ?? "http://127.0.0.1:9495";
   }
 
   private async fetchJson<T>(paths: string[]): Promise<T> {
+    if (this.runtime) {
+      const ready = await this.runtime.ensureReady(`gpm client ${paths[0] ?? ""}`);
+      if (!ready.ok) {
+        throw new Error(ready.message || "GPM Login API is not ready");
+      }
+    }
+
     let lastError: unknown = new Error("No GPM endpoint attempted");
     for (const path of paths) {
       try {
-        const response = await fetch(`${this.apiUrl}${path}`);
+        const response = await fetch(`${this.getApiUrl()}${path}`);
         if (!response.ok) {
           lastError = new Error(`HTTP Error ${response.status}: ${response.statusText}`);
           continue;
@@ -84,7 +103,7 @@ export class GpmClient {
     } catch {
       console.error(
         "[GPM Client] Cannot connect to GPM Login API. Check that GPM Login is running at:",
-        this.apiUrl
+        this.getApiUrl()
       );
       return false;
     }

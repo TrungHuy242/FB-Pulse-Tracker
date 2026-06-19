@@ -352,7 +352,7 @@ export default function SettingsPage() {
             >
               <SectionTitle icon={<InfoCircleOutlined />} title="System Specifications" />
 
-              <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <Space orientation="vertical" size={4} style={{ width: "100%" }}>
                 {[
                   { label: "Ứng dụng", value: "FB Pulse Tracker" },
                   { label: "Phiên bản", value: "1.5.0 (Day 15)" },

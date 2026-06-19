@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "bridge:start-bg": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-gpm-bridge-background.ps1",
+    "bridge:install-startup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-gpm-bridge-startup-task.ps1",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

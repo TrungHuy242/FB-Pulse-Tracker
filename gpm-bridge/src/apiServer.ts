@@ -8,6 +8,29 @@ import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
 import fetch, { RequestInit } from "node-fetch";
 import { scrapeFacebookInfo } from "./facebookScraper.js";
+import type { GpmRuntime } from "./gpmProcess.js";
+
+type GpmTarget = string | GpmRuntime;
+
+function isGpmRuntime(target: GpmTarget): target is GpmRuntime {
+  return typeof target !== "string";
+}
+
+interface GpmStartApiBody {
+  success?: boolean;
+  message?: string;
+  remote_debugging_port?: number;
+  data?: {
+    remote_debugging_port?: number;
+    selenium_remote_debug_address?: string;
+    addition_info?: {
+      process_id?: number;
+      profile_name?: string;
+      window_handle?: number;
+    };
+  };
+  fbInfo?: unknown;
+}
 
 function appendQuery(qs: URLSearchParams, key: string, value: unknown) {
   if (Array.isArray(value)) {
@@ -56,11 +79,111 @@ function withTimeout(ms: number): { signal: AbortSignal; cleanup: () => void } {
   };
 }
 
-export function createApiServer(gpmApiUrl: string, port = 3001) {
+type RunningProfileInfo = {
+  debugPort?: number;
+  processId?: number;
+  startedAt: number;
+};
+
+// In-memory tracking for browsers opened through this bridge. The state is
+// verified against the Chrome remote-debugging port so manual window closes are
+// detected on the next poll.
+const runningProfiles = new Map<string, RunningProfileInfo>();
+
+function extractDebugPort(body: GpmStartApiBody): number | undefined {
+  let debugPort = body.remote_debugging_port || body.data?.remote_debugging_port;
+  if (!debugPort && body.data?.selenium_remote_debug_address) {
+    const address = body.data.selenium_remote_debug_address;
+    const parts = address.split(":");
+    const parsedPort = Number.parseInt(parts[parts.length - 1] ?? "", 10);
+    if (!Number.isNaN(parsedPort)) debugPort = parsedPort;
+  }
+  return debugPort;
+}
+
+function extractProcessId(body: GpmStartApiBody): number | undefined {
+  const processId = body.data?.addition_info?.process_id;
+  return Number.isInteger(processId) && processId && processId > 0 ? processId : undefined;
+}
+
+async function isDebugPortAlive(port: number): Promise<boolean> {
+  const timeout = withTimeout(1500);
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: timeout.signal,
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+function isProcessAlive(processId: number): boolean {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getVerifiedRunningProfileIds(): Promise<string[]> {
+  const now = Date.now();
+  const runningIds: string[] = [];
+
+  for (const [profileId, info] of runningProfiles.entries()) {
+    if (!info.debugPort && !info.processId) {
+      if (now - info.startedAt < 15_000) {
+        runningIds.push(profileId);
+      } else {
+        runningProfiles.delete(profileId);
+      }
+      continue;
+    }
+
+    const debugAlive = info.debugPort ? await isDebugPortAlive(info.debugPort) : false;
+    const processAlive = info.processId ? isProcessAlive(info.processId) : false;
+    const alive = debugAlive || processAlive;
+    if (alive) {
+      runningIds.push(profileId);
+    } else {
+      runningProfiles.delete(profileId);
+    }
+  }
+
+  return runningIds;
+}
+
+export function createApiServer(gpmTarget: GpmTarget, port = 3001) {
   const app = express();
 
   app.use(cors({ origin: process.env.BRIDGE_CORS_ORIGIN || "*" }));
   app.use(express.json({ limit: "2mb" }));
+
+  function getGpmApiUrl(): string {
+    return isGpmRuntime(gpmTarget) ? gpmTarget.getApiUrl() : gpmTarget;
+  }
+
+  async function ensureGpmReady(reason: string): Promise<{
+    ok: boolean;
+    apiUrl: string;
+    autoStart: boolean;
+    started?: boolean;
+    executablePath?: string;
+    message?: string;
+  }> {
+    if (isGpmRuntime(gpmTarget)) {
+      return gpmTarget.ensureReady(reason);
+    }
+    return {
+      ok: true,
+      apiUrl: gpmTarget,
+      autoStart: false,
+      message: undefined,
+    };
+  }
 
   async function proxy(
     method: "GET" | "POST",
@@ -68,6 +191,16 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
     res: Response,
     body?: unknown
   ) {
+    const ready = await ensureGpmReady(`proxy ${method} ${paths[0] ?? ""}`);
+    if (!ready.ok) {
+      res.status(502).json({
+        success: false,
+        message: ready.message || "GPM API khong phan hoi",
+        gpm: ready,
+      });
+      return;
+    }
+
     let lastStatus = 502;
     let lastBody: unknown = {
       success: false,
@@ -75,7 +208,7 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
     };
 
     for (const path of paths) {
-      const url = `${gpmApiUrl}${path}`;
+      const url = `${getGpmApiUrl()}${path}`;
       try {
         const opts: RequestInit = { method };
         if (method === "POST") {
@@ -113,15 +246,33 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
   }
 
   app.get("/health", async (_req: Request, res: Response) => {
+    const ready = await ensureGpmReady("health");
+    if (isGpmRuntime(gpmTarget)) {
+      res.json({
+        status: "ok",
+        bridge: true,
+        gpmApiUrl: ready.apiUrl,
+        gpm: {
+          ok: ready.ok,
+          message: ready.message,
+          autoStart: ready.autoStart,
+          started: ready.started,
+          executablePath: ready.executablePath,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     const timeout = withTimeout(2500);
     try {
-      const resp = await fetch(`${gpmApiUrl}/api/v1/profiles?page=1&page_size=1`, {
+      const resp = await fetch(`${getGpmApiUrl()}/api/v1/profiles?page=1&page_size=1`, {
         signal: timeout.signal,
       });
       res.json({
         status: "ok",
         bridge: true,
-        gpmApiUrl,
+        gpmApiUrl: getGpmApiUrl(),
         gpm: { ok: resp.ok, status: resp.status },
         timestamp: new Date().toISOString(),
       });
@@ -130,7 +281,7 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
       res.json({
         status: "ok",
         bridge: true,
-        gpmApiUrl,
+        gpmApiUrl: getGpmApiUrl(),
         gpm: { ok: false, message },
         timestamp: new Date().toISOString(),
       });
@@ -163,6 +314,12 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
     await proxyGet(`/api/v1/profiles${buildListQuery(req)}`, res);
   });
 
+  // ── Endpoint lấy danh sách profile IDs đang chạy browser ───────────────────
+  // Phải đặt TRƯỚC route /:id để Express không match nhầm "running" thành :id
+  app.get("/gpm/profiles/running", async (_req: Request, res: Response) => {
+    res.json({ success: true, data: await getVerifiedRunningProfileIds() });
+  });
+
   app.get("/gpm/profiles/:id", async (req: Request, res: Response) => {
     await proxyGet(`/api/v1/profiles/${encodeURIComponent(String(req.params.id))}`, res);
   });
@@ -192,18 +349,28 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
     const suffix = qs.toString() ? `?${qs}` : "";
     
     try {
-      const url = `${gpmApiUrl}/api/v1/profiles/start/${encodeURIComponent(String(req.params.id))}${suffix}`;
+      const ready = await ensureGpmReady(`start profile ${req.params.id}`);
+      if (!ready.ok) {
+        res.status(502).json({
+          success: false,
+          message: ready.message || "GPM API khong phan hoi",
+          gpm: ready,
+        });
+        return;
+      }
+
+      const url = `${getGpmApiUrl()}/api/v1/profiles/start/${encodeURIComponent(String(req.params.id))}${suffix}`;
       const resp = await fetch(url);
-      const body = await readResponseBody(resp) as any;
+      const body = await readResponseBody(resp) as GpmStartApiBody;
       
       if (resp.ok && body && (body.success || body.remote_debugging_port || body.data?.remote_debugging_port)) {
-        let debugPort = body.remote_debugging_port || body.data?.remote_debugging_port;
-        if (!debugPort && body.data?.selenium_remote_debug_address) {
-          const address = body.data.selenium_remote_debug_address;
-          const parts = address.split(":");
-          const parsedPort = parseInt(parts[parts.length - 1]);
-          if (!isNaN(parsedPort)) debugPort = parsedPort;
-        }
+        const debugPort = extractDebugPort(body);
+        const processId = extractProcessId(body);
+        runningProfiles.set(String(req.params.id), {
+          debugPort,
+          processId,
+          startedAt: Date.now(),
+        });
         
         if (debugPort) {
           console.log(`[API Server] Profile ${req.params.id} đã mở ở debug port ${debugPort}. Đang cào thông tin Facebook...`);
@@ -223,6 +390,8 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
   });
 
   app.get("/gpm/profiles/stop/:id", async (req: Request, res: Response) => {
+    // Xóa khỏi tracking trước khi gọi GPM stop
+    runningProfiles.delete(String(req.params.id));
     await proxyGet(`/api/v1/profiles/stop/${encodeURIComponent(String(req.params.id))}`, res);
   });
 
@@ -284,7 +453,7 @@ export function createApiServer(gpmApiUrl: string, port = 3001) {
 
   const server = app.listen(port, () => {
     console.log(`[API Server] GPM Bridge HTTP API: http://localhost:${port}`);
-    console.log(`[API Server] Proxy target: ${gpmApiUrl}`);
+    console.log(`[API Server] Proxy target: ${getGpmApiUrl()}`);
   });
 
   return server;

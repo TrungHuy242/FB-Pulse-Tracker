@@ -45,6 +45,10 @@ type CampaignUpdateData = Partial<Omit<SeedingCampaign, "id" | "createdAt" | "sc
   scheduledAt?: SeedingCampaign["scheduledAt"] | FieldValue;
 };
 
+type ProfileUpdateData = Partial<Omit<SeedingProfile, "id" | "createdAt" | "fbSyncedAt">> & {
+  fbSyncedAt?: SeedingProfile["fbSyncedAt"] | FieldValue;
+};
+
 // ── Realtime subscriptions ────────────────────────────────────────────────────
 
 /**
@@ -116,7 +120,7 @@ export async function createProfile(
 
 export async function updateProfile(
   id: string,
-  data: Partial<Omit<SeedingProfile, "id" | "createdAt">>
+  data: ProfileUpdateData
 ): Promise<void> {
   await updateDoc(doc(db, "seedingProfiles", id), { ...data });
 }

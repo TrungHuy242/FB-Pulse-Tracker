@@ -33,6 +33,9 @@ export interface GpmBridgeHealth {
     ok: boolean;
     status?: number;
     message?: string;
+    autoStart?: boolean;
+    started?: boolean;
+    executablePath?: string;
   };
   timestamp: string;
 }
@@ -92,6 +95,8 @@ export interface GpmProfile {
   fixed_language: string | null;
   startup_urls: string | null;
   note: string | null;
+  tags?: string[];
+  storage_path?: string;
   created_at?: string;
   updated_at?: string;
   is_running?: boolean;

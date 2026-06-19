@@ -8,9 +8,10 @@
  *
  * Bridge với GPM Automate qua Excel/CSV (không gọi Facebook, không gọi GPM API).
  */
-import { lazy, Suspense, useState, useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
-  Tabs, Table, Button, Modal, Input, Select, Form, Tag, Space,
+  Table, Button, Modal, Input, Select, Form, Tag, Space,
   message, Tooltip, Upload, Dropdown, Empty, Skeleton, Progress,
   Typography, Popconfirm, DatePicker, Switch, Row, Col, Card, Alert, theme as antdTheme,
 } from "antd";
@@ -586,7 +587,7 @@ function CampaignsTab({
       width: 140,
       sorter: (a: SeedingCampaign, b: SeedingCampaign) => a.status.localeCompare(b.status),
       render: (s: CampaignStatus, r: SeedingCampaign) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Tag color={CAMPAIGN_STATUS_COLOR[s]} style={{ fontSize: 11, borderRadius: 4, border: "none", margin: 0 }}>
             {CAMPAIGN_STATUS_LABELS[s]}
           </Tag>
@@ -1751,13 +1752,44 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
   comments:  <CopyOutlined />,
 };
 
+type SeedingSection = "dashboard" | "campaigns" | "planner" | "profiles" | "comments";
+
+function getSeedingSection(pathname: string): SeedingSection {
+  if (pathname.startsWith("/seeding/campaigns")) return "campaigns";
+  if (pathname.startsWith("/seeding/planner")) return "planner";
+  if (pathname.startsWith("/seeding/profiles")) return "profiles";
+  if (pathname.startsWith("/seeding/comments")) return "comments";
+  return "dashboard";
+}
+
+const SECTION_TITLES: Record<SeedingSection, string> = {
+  dashboard: "Seeding Manager",
+  campaigns: "Seeding Manager / Chiến dịch",
+  planner: "Seeding Manager / AI Planner",
+  profiles: "Seeding Manager / Profiles GPM",
+  comments: "Seeding Manager / Thư viện bình luận",
+};
+
 export default function SeedingPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 1;
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [allTasks, setAllTasks] = useState<SeedingTask[]>([]);
   const [campaigns, setCampaigns] = useState<SeedingCampaign[]>([]);
   const [profiles, setProfiles] = useState<SeedingProfile[]>([]);
+  const activeSection = getSeedingSection(location.pathname);
+  const activeTab = activeSection;
+  const setActiveTab = (key: string) => {
+    const pathMap: Record<string, string> = {
+      dashboard: "/seeding",
+      campaigns: "/seeding/campaigns",
+      planner: "/seeding/planner",
+      profiles: "/seeding/profiles",
+      comments: "/seeding/comments",
+    };
+    navigate(pathMap[key] ?? "/seeding");
+  };
 
   useEffect(() => {
     const unsubCampaigns = subscribeCampaigns(setCampaigns);
@@ -1834,18 +1866,12 @@ export default function SeedingPage() {
   ];
 
   return (
-    <AppLayout title="Seeding Manager">
+    <AppLayout title={SECTION_TITLES[activeSection]}>
       <div style={{ marginBottom: 8, padding: "8px 16px", background: "#fafafa",
         border: "1px solid #dfdfdf", borderRadius: 8, fontSize: 12, color: "#6b6b6b" }}>
-        GPM Bridge Agent kết nối trực tiếp GPM Login API — quản lý profiles, mở/đóng browser, đồng bộ Firebase.
+        Quản lý profiles, nhóm và proxy từ GPM Login.
       </div>
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabItems}
-        size="small"
-        style={{ background: "#fff" }}
-      />
+      {tabItems.find((item) => item.key === activeTab)?.children ?? tabItems[0].children}
     </AppLayout>
   );
 }

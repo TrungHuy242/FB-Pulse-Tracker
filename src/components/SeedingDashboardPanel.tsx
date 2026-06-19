@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import { SafeECharts } from "./SafeECharts";
 import { Row, Col, Card, Empty, theme as antdTheme } from "antd";
 import type { SeedingTask } from "@/types/seeding";
 import dayjs from "dayjs";
@@ -378,7 +378,7 @@ export const SeedingDashboardPanel: React.FC<SeedingDashboardPanelProps> = ({
             }}
           >
             {timelineOption ? (
-              <ReactECharts option={timelineOption} style={{ height: 280 }} />
+              <SafeECharts option={timelineOption} style={{ height: 280 }} />
             ) : (
               <Empty description="Chưa có dữ liệu thống kê theo ngày" style={{ padding: "50px 0" }} />
             )}
@@ -396,7 +396,7 @@ export const SeedingDashboardPanel: React.FC<SeedingDashboardPanelProps> = ({
             }}
           >
             {actionOption ? (
-              <ReactECharts option={actionOption} style={{ height: 280 }} />
+              <SafeECharts option={actionOption} style={{ height: 280 }} />
             ) : (
               <Empty description="Chưa có dữ liệu hành động" style={{ padding: "50px 0" }} />
             )}
@@ -414,7 +414,7 @@ export const SeedingDashboardPanel: React.FC<SeedingDashboardPanelProps> = ({
             }}
           >
             {profileOption ? (
-              <ReactECharts option={profileOption} style={{ height: 260 }} />
+              <SafeECharts option={profileOption} style={{ height: 260 }} />
             ) : (
               <Empty description="Chưa có dữ liệu hoạt động của các profiles" style={{ padding: "40px 0" }} />
             )}

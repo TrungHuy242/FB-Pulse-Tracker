@@ -84,6 +84,18 @@ graph TD
    npm install
    npm run dev
    ```
+
+Chay nen Bridge khong can mo terminal:
+```bash
+npm run bridge:start-bg
+```
+
+Cai Bridge tu chay khi dang nhap Windows:
+```bash
+npm run bridge:install-startup
+```
+
+Sau khi cai startup task, mo `http://localhost:3001/health` de kiem tra. Neu `gpm.ok=true`, Bridge da san sang va se tu mo GPM Login nen khi can.
    *Frontend sẽ chạy tại địa chỉ: [http://localhost:5173](http://localhost:5173)*
 
 ### 3. Cài Đặt GPM Bridge Agent (Thư mục `/gpm-bridge`)
@@ -97,6 +109,16 @@ graph TD
    ```env
    # API GPM Login chạy ở local máy bạn (mặc định GPM chạy port 9495 hoặc 3000)
    GPM_API_URL=http://127.0.0.1:9495
+
+   # Bridge có thể tự khởi động GPM Login nền nếu API chưa sẵn sàng.
+   # Nếu để trống, bridge sẽ tự dò các đường dẫn phổ biến trong AppData / Program Files.
+   GPM_EXECUTABLE_PATH=C:\Users\Acer\AppData\Local\Programs\GPMLoginGlobal\GPMLoginGlobal.exe
+   GPM_HTTP_PORT_FILE=
+   GPM_AUTO_START=true
+   GPM_AUTO_START_ON_BRIDGE_START=true
+   GPM_STARTUP_TIMEOUT_MS=45000
+   GPM_STARTUP_POLL_INTERVAL_MS=1500
+   GPM_STARTUP_ARGS=
    
    # Đường dẫn tới file credentials Firebase Admin SDK đã tải ở Bước 1
    FIREBASE_SERVICE_ACCOUNT_PATH=../firebase-service-account.json
@@ -114,6 +136,8 @@ graph TD
    npm run dev
    ```
    *Bridge Agent sẽ chạy tại địa chỉ: [http://localhost:3001](http://localhost:3001)*
+
+> Lưu ý: GPM Login không cần mở thủ công trước, nhưng process GPM vẫn phải được bridge khởi động nền thành công để Local API hoạt động.
 
 ---
 
@@ -175,4 +199,3 @@ Hệ thống có sẵn các tài liệu hướng dẫn vận hành chi tiết đ
 * **Hướng dẫn vận hành Seeding**: [docs/SEEDING_MANAGER_GUIDE.md](docs/SEEDING_MANAGER_GUIDE.md)
 * **Sổ tay kết nối Excel/CSV Bridge**: [docs/GPM_EXCEL_BRIDGE.md](docs/GPM_EXCEL_BRIDGE.md)
 * **Danh mục kiểm thử nội bộ**: [docs/MVP_INTERNAL_CHECKLIST.md](docs/MVP_INTERNAL_CHECKLIST.md)
-
