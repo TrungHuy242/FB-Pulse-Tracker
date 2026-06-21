@@ -1,0 +1,218 @@
+@startuml FB_Pulse_Tracker_UseCase_Diagram
+!theme plain
+
+/' ============================================================================
+ * FB Pulse Tracker - Use Case Diagram
+ * System: Internal Facebook Analytics Platform
+ * Author: System Analyst
+ * Version: 1.0
+ * ============================================================================
+'/
+
+skinparam {
+    backgroundColor #FFFFFF
+    shadowing false
+    handwritten false
+    defaultFontName "Segoe UI"
+    defaultFontSize 12
+    titleFontSize 16
+    arrowColor #333333
+    actorBorderColor #2C3E50
+    actorBackgroundColor #ECF0F1
+    usecaseBorderColor #2C3E50
+    usecaseBackgroundColor #FFFFFF
+    usecaseBorderThickness 1
+    actorStyle hollow
+    stereotypeStyle solid
+}
+
+/' ========================================================================
+ * ACTORS
+ * ======================================================================== '/
+
+actor "Viewer" as viewer #3498DB
+actor "Admin" as admin #E74C3C
+actor "Google Gemini API" as gemini #9B59B6
+actor "Firebase Authentication" as firebase #F39C12
+
+/' ========================================================================
+ * SYSTEM BOUNDARY
+ * ======================================================================== '/
+
+rectangle "FB Pulse Tracker" {
+    /' ----------------------------------------------------------------
+     * AUTHENTICATION USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "Login" as UC_LOGIN #5DADE2
+    usecase "Logout" as UC_LOGOUT #5DADE2
+
+    /' ----------------------------------------------------------------
+     * DATA IMPORT USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "Import Facebook ZIP" as UC_IMPORT_ZIP #27AE60
+    usecase "View Imported Data" as UC_VIEW_IMPORTS #27AE60
+
+    /' ----------------------------------------------------------------
+     * COMMENT VIEWING USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "View Comments" as UC_VIEW_COMMENTS #2ECC71
+    usecase "Search Comments" as UC_SEARCH #2ECC71
+    usecase "View Sentiment Analytics" as UC_SENTIMENT #9B59B6
+    usecase "View Intent Analytics" as UC_INTENT #9B59B6
+    usecase "Filter Analytics Data" as UC_FILTER #9B59B6
+
+    /' ----------------------------------------------------------------
+     * ANALYTICS USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "View Campaign Reports" as UC_REPORTS #E67E22
+
+    /' ----------------------------------------------------------------
+     * EXPORT USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "Export CSV" as UC_EXPORT_CSV #1ABC9C
+    usecase "Export JSON" as UC_EXPORT_JSON #1ABC9C
+    usecase "Export XLSX" as UC_EXPORT_XLSX #1ABC9C
+
+    /' ----------------------------------------------------------------
+     * SEEDING USE CASES (Admin)
+     * ---------------------------------------------------------------- '/
+    usecase "Create Seeding Campaign" as UC_CREATE_CAMPAIGN #E74C3C
+    usecase "Update Seeding Campaign" as UC_UPDATE_CAMPAIGN #E74C3C
+    usecase "Delete Seeding Campaign" as UC_DELETE_CAMPAIGN #E74C3C
+    usecase "View Seeding Performance" as UC_SEEDING_PERF #E74C3C
+    usecase "Generate AI Content Ideas" as UC_AI_IDEAS #9B59B6
+
+    /' ----------------------------------------------------------------
+     * ADMIN MANAGEMENT USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "Manage Accounts" as UC_MANAGE_ACCOUNTS #C0392B
+    usecase "Approve User Access" as UC_APPROVE #C0392B
+    usecase "Revoke User Access" as UC_REVOKE #C0392B
+    usecase "Manage System Settings" as UC_SETTINGS #C0392B
+    usecase "Manage AI Configuration" as UC_AI_CONFIG #C0392B
+    usecase "View Audit Logs" as UC_AUDIT #C0392B
+
+    /' ----------------------------------------------------------------
+     * DASHBOARD USE CASES
+     * ---------------------------------------------------------------- '/
+    usecase "View Dashboard" as UC_DASHBOARD #34495E
+
+    /' ----------------------------------------------------------------
+     * INTERNAL USE CASES (System)
+     * ---------------------------------------------------------------- '/
+    usecase "Process Facebook ZIP" as UC_PROCESS_ZIP #BDC3C7
+    usecase "Extract Comments" as UC_EXTRACT_COMMENTS #BDC3C7
+    usecase "Extract Reactions" as UC_EXTRACT_REACTIONS #BDC3C7
+    usecase "Analyze Sentiment" as UC_ANALYZE_SENTIMENT #BDC3C7
+    usecase "Analyze Intent" as UC_ANALYZE_INTENT #BDC3C7
+    usecase "Generate Analytics Summary" as UC_SUMMARY #BDC3C7
+    usecase "Generate Report" as UC_GENERATE_REPORT #BDC3C7
+    usecase "Validate User Access" as UC_VALIDATE #BDC3C7
+    usecase "Authenticate User" as UC_AUTH #BDC3C7
+    usecase "Fallback Rule-Based Analysis" as UC_FALLBACK #BDC3C7
+}
+
+/' ========================================================================
+ * ACTOR-USE CASE ASSOCIATIONS
+ * ======================================================================== '/
+
+/' Viewer Associations '/
+viewer --> UC_LOGIN
+viewer --> UC_LOGOUT
+viewer --> UC_DASHBOARD
+viewer --> UC_IMPORT_ZIP
+viewer --> UC_VIEW_IMPORTS
+viewer --> UC_VIEW_COMMENTS
+viewer --> UC_SEARCH
+viewer --> UC_SENTIMENT
+viewer --> UC_INTENT
+viewer --> UC_FILTER
+viewer --> UC_REPORTS
+viewer --> UC_EXPORT_CSV
+viewer --> UC_EXPORT_JSON
+viewer --> UC_EXPORT_XLSX
+
+/' Admin Associations '/
+admin --> UC_LOGIN
+admin --> UC_LOGOUT
+admin --> UC_DASHBOARD
+admin --> UC_MANAGE_ACCOUNTS
+admin --> UC_APPROVE
+admin --> UC_REVOKE
+admin --> UC_CREATE_CAMPAIGN
+admin --> UC_UPDATE_CAMPAIGN
+admin --> UC_DELETE_CAMPAIGN
+admin --> UC_SEEDING_PERF
+admin --> UC_AI_IDEAS
+admin --> UC_SETTINGS
+admin --> UC_AI_CONFIG
+admin --> UC_AUDIT
+admin --> UC_IMPORT_ZIP
+admin --> UC_VIEW_IMPORTS
+admin --> UC_VIEW_COMMENTS
+admin --> UC_SEARCH
+admin --> UC_SENTIMENT
+admin --> UC_INTENT
+admin --> UC_FILTER
+admin --> UC_REPORTS
+admin --> UC_EXPORT_CSV
+admin --> UC_EXPORT_JSON
+admin --> UC_EXPORT_XLSX
+
+/' External System Associations '/
+gemini --> UC_ANALYZE_SENTIMENT
+gemini --> UC_ANALYZE_INTENT
+gemini --> UC_AI_IDEAS
+firebase --> UC_AUTH
+
+/' ========================================================================
+ * INCLUDE RELATIONSHIPS
+ * ======================================================================== '/
+
+' Authentication includes
+UC_LOGIN ..> UC_AUTH : <<include>>
+UC_LOGIN ..> UC_VALIDATE : <<include>>
+
+' ZIP Processing includes
+UC_IMPORT_ZIP ..> UC_PROCESS_ZIP : <<include>>
+UC_PROCESS_ZIP ..> UC_EXTRACT_COMMENTS : <<include>>
+UC_PROCESS_ZIP ..> UC_EXTRACT_REACTIONS : <<include>>
+
+' Analytics includes
+UC_SENTIMENT ..> UC_ANALYZE_SENTIMENT : <<include>>
+UC_INTENT ..> UC_ANALYZE_INTENT : <<include>>
+UC_REPORTS ..> UC_GENERATE_REPORT : <<include>>
+UC_GENERATE_REPORT ..> UC_SUMMARY : <<include>>
+
+' Seeding includes
+UC_CREATE_CAMPAIGN ..> UC_AI_IDEAS : <<include>>
+
+/' ========================================================================
+ * EXTEND RELATIONSHIPS
+ * ======================================================================== '/
+
+UC_ANALYZE_SENTIMENT ..> UC_FALLBACK : <<extend>>
+UC_ANALYZE_INTENT ..> UC_FALLBACK : <<extend>>
+
+/' ========================================================================
+ * GENERALIZATION
+ * ======================================================================== '/
+
+admin -|> viewer : <<extends>>
+
+/' ========================================================================
+ * TITLE AND LEGEND
+ * ======================================================================== '/
+
+title FB Pulse Tracker - Use Case Diagram
+
+legend right
+|= Symbol |= Meaning |
+| <back:#3498DB>actor</back> | External User or System |
+| <back:#FFFFFF>usecase</back> | System Function |
+| <<include>> | Mandatory Sub-function |
+| <<extend>> | Optional Extension |
+| <<extends>> | Inheritance Relationship |
+endlegend
+
+@enduml

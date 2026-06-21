@@ -1,0 +1,411 @@
+<mxfile host="app.diagrams.net" modified="2026-06-21T15:56:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="usecase-diagram" name="FB Pulse Tracker Use Case">
+    <mxGraphModel dx="1800" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- System Boundary -->
+        <mxCell id="system-boundary" value="FB Pulse Tracker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#2C3E50;strokeWidth=2;fontSize=16;fontStyle=1;verticalAlign=top;spacingTop=10;spacingLeft=20;spacingRight=20;spacingBottom=10;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="200" y="40" width="1400" height="1100" as="geometry" />
+        </mxCell>
+
+        <!-- Title -->
+        <mxCell id="title" value="FB Pulse Tracker - Use Case Diagram" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="600" y="10" width="400" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ACTORS ==================== -->
+
+        <!-- Viewer Actor -->
+        <mxCell id="actor-viewer" value="👤 Viewer" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fillColor=#3498DB;strokeColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor-viewer-label" value="Viewer" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#2C3E50;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="290" width="80" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Admin Actor -->
+        <mxCell id="actor-admin" value="👤 Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=12;fillColor=#E74C3C;strokeColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="40" y="500" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="actor-admin-label" value="Admin" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#2C3E50;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="590" width="80" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Google Gemini API Actor -->
+        <mxCell id="actor-gemini" value="🤖&#10;Gemini API" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=10;fillColor=#9B59B6;strokeColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="200" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Firebase Auth Actor -->
+        <mxCell id="actor-firebase" value="🔐 Firebase&#10;Auth" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=10;fillColor=#F39C12;strokeColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="500" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== USE CASES ==================== -->
+
+        <!-- Authentication -->
+        <mxCell id="uc-login" value="Login" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#5DADE2;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="280" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-logout" value="Logout" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#5DADE2;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="420" y="80" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-auth" value="Authenticate User" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="110" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-validate" value="Validate User Access" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="60" width="110" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Dashboard -->
+        <mxCell id="uc-dashboard" value="View Dashboard" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#34495E;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="160" width="120" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Data Import -->
+        <mxCell id="uc-import" value="Import Facebook ZIP" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#27AE60;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="230" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-view-imports" value="View Imported Data" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#27AE60;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="235" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-process-zip" value="Process Facebook ZIP" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="220" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-extract-comments" value="Extract Comments" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="195" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-extract-reactions" value="Extract Reactions" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="235" width="100" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Comment Management -->
+        <mxCell id="uc-view-comments" value="View Comments" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#2ECC71;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="320" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-search" value="Search Comments" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#2ECC71;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="440" y="325" width="110" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Analytics -->
+        <mxCell id="uc-sentiment" value="View Sentiment&#10;Analytics" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#9B59B6;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="300" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-intent" value="View Intent&#10;Analytics" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#9B59B6;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="370" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-filter" value="Filter Analytics Data" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#9B59B6;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="335" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-reports" value="View Campaign Reports" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#E67E22;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="860" y="320" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-analyze-sentiment" value="Analyze Sentiment" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="280" width="100" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-analyze-intent" value="Analyze Intent" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="330" width="100" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-fallback" value="Fallback Rule-Based" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="300" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-summary" value="Generate Summary" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="380" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-generate-report" value="Generate Report" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="420" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Export -->
+        <mxCell id="uc-export-csv" value="Export CSV" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#1ABC9C;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="400" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-export-json" value="Export JSON" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#1ABC9C;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="450" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-export-xlsx" value="Export XLSX" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#1ABC9C;strokeColor=#2C3E50;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="500" width="100" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Seeding Management (Admin) -->
+        <mxCell id="uc-create-campaign" value="Create Seeding&#10;Campaign" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#E74C3C;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="500" y="480" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-update-campaign" value="Update Seeding&#10;Campaign" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#E74C3C;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="500" y="545" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-delete-campaign" value="Delete Seeding&#10;Campaign" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#E74C3C;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="510" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-seeding-perf" value="View Seeding&#10;Performance" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#E74C3C;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="480" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-ai-ideas" value="Generate AI&#10;Content Ideas" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#9B59B6;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="950" y="480" width="130" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Administration (Admin) -->
+        <mxCell id="uc-manage-accounts" value="Manage Accounts" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="500" y="640" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-approve" value="Approve User Access" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="650" y="620" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-revoke" value="Revoke User Access" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="650" y="670" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-settings" value="Manage System&#10;Settings" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="640" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-ai-config" value="Manage AI&#10;Configuration" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="620" width="110" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="uc-audit" value="View Audit Logs" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#C0392B;strokeColor=#2C3E50;fontColor=#FFFFFF;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="675" width="110" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ASSOCIATIONS ==================== -->
+
+        <!-- Viewer to Use Cases -->
+        <mxCell id="assoc-viewer-login" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-logout" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-logout">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-dashboard" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-import" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-import">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-view-imports" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-view-imports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-comments" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-view-comments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-search" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-sentiment" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-sentiment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-intent" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-intent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-filter" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-filter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-reports" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-reports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-csv" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-export-csv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-json" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-export-json">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-viewer-xlsx" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-viewer" target="uc-export-xlsx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin to Use Cases -->
+        <mxCell id="assoc-admin-login" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-login">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-logout" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-logout">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-dashboard" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-import" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-import">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-view-imports" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-view-imports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-comments" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-view-comments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-search" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-sentiment" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-sentiment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-intent" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-intent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-filter" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-filter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-reports" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-reports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-csv" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-export-csv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-json" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-export-json">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-xlsx" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-export-xlsx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-manage" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-manage-accounts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-approve" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-approve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-revoke" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-revoke">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-create" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-create-campaign">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-update" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-update-campaign">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-delete" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-delete-campaign">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-perf" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-seeding-perf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-ideas" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-ai-ideas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-settings" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-settings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-config" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-ai-config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-admin-audit" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#2C3E50;endFill=0;" edge="1" parent="1" source="actor-admin" target="uc-audit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- External Systems -->
+        <mxCell id="assoc-gemini-sentiment" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#9B59B6;endFill=0;dashed=1;" edge="1" parent="1" source="actor-gemini" target="uc-analyze-sentiment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-gemini-intent" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#9B59B6;endFill=0;dashed=1;" edge="1" parent="1" source="actor-gemini" target="uc-analyze-intent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-gemini-ideas" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#9B59B6;endFill=0;dashed=1;" edge="1" parent="1" source="actor-gemini" target="uc-ai-ideas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc-firebase-auth" style="endArrow=none;html=1;strokeWidth=1;strokeColor=#F39C12;endFill=0;dashed=1;" edge="1" parent="1" source="actor-firebase" target="uc-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== INCLUDE RELATIONSHIPS ==================== -->
+
+        <!-- Authentication includes -->
+        <mxCell id="include-login-auth" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="uc-login" target="uc-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-login-validate" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-login" target="uc-validate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Import includes -->
+        <mxCell id="include-import-process" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-import" target="uc-process-zip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-process-comments" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-process-zip" target="uc-extract-comments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-process-reactions" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-process-zip" target="uc-extract-reactions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Analytics includes -->
+        <mxCell id="include-sentiment-analyze" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-sentiment" target="uc-analyze-sentiment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-intent-analyze" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-intent" target="uc-analyze-intent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-reports-generate" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-reports" target="uc-generate-report">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="include-generate-summary" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-generate-report" target="uc-summary">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Seeding includes -->
+        <mxCell id="include-create-ideas" value="&lt;&lt;include&gt;&gt;" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#27AE60;endFill=1;" edge="1" parent="1" source="uc-create-campaign" target="uc-ai-ideas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== EXTEND RELATIONSHIPS ==================== -->
+
+        <mxCell id="extend-sentiment-fallback" value="&lt;&lt;extend&gt;&gt;" style="endArrow=block;endSize=16;endFill=0;html=1;strokeWidth=1;strokeColor=#E74C3C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;shadow=0;" edge="1" parent="1" source="uc-analyze-sentiment" target="uc-fallback">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="extend-intent-fallback" value="&lt;&lt;extend&gt;&gt;" style="endArrow=block;endSize=16;endFill=0;html=1;strokeWidth=1;strokeColor=#E74C3C;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;shadow=0;" edge="1" parent="1" source="uc-analyze-intent" target="uc-fallback">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== GENERALIZATION ==================== -->
+
+        <mxCell id="generalization-admin" value="" style="endArrow=triangle;endSize=14;endFill=0;html=1;strokeWidth=1;strokeColor=#2C3E50;exitX=0;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="actor-admin" target="actor-viewer">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="580" />
+              <mxPoint x="20" y="280" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gen-label" value="&lt;&lt;extends&gt;&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#2C3E50;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="10" y="430" width="60" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+
+        <mxCell id="legend-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="740" width="350" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="290" y="750" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-actor" value="Actor" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=10;fillColor=#3498DB;strokeColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="300" y="780" width="20" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-actor-text" value="External User/System" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="790" width="120" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-usecase" value="Use Case" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#FFFFFF;strokeColor=#2C3E50;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="825" width="60" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-usecase-text" value="System Function" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="830" width="100" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-include" value="include" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#27AE60;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="480" y="790" width="60" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-include-text" value="Mandatory" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="805" width="60" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-extend" value="extend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#E74C3C;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="560" y="790" width="60" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-extend-text" value="Optional" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="805" width="60" height="15" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-internal" value="internal" style="shape=useCase;whiteSpace=wrap;html=1;horizontal=1;fillColor=#BDC3C7;strokeColor=#95A5A6;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="830" width="70" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-internal-text" value="System" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="835" width="60" height="15" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
