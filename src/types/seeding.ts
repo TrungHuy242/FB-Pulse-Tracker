@@ -1,115 +1,148 @@
-import type { Timestamp } from "firebase/firestore";
+/**
+ * Seeding Manager Types
+ */
 
-// ── Enums ─────────────────────────────────────────────────────────────────────
+export type SeedingCategory =
+  | "tìm khóa học"
+  | "tìm trung tâm"
+  | "tìm lớp"
+  | "tìm gia sư"
+  | "học online"
+  | "hỏi tài liệu"
+  | "hỏi app/web"
+  | "hỏi HSK"
+  | "hỏi kinh nghiệm học"
+  | "tự học";
 
-export type SeedingAction   = "like" | "comment" | "share";
-export type TaskStatus      = "scheduled" | "pending" | "running" | "success" | "failed" | "skipped";
-export type CampaignStatus  = "draft" | "active" | "paused" | "completed" | "scheduled";
-export type ProfileStatus   = "active" | "inactive" | "banned";
+export type GroupCategory = "review" | "online" | "hsk" | "tailieu" | "all";
 
-// ── Firestore documents ───────────────────────────────────────────────────────
+export type GroupType = "review_trung_tâm" | "học_online" | "hsk" | "tài_liệu" | "all";
 
-export interface SeedingProfile {
-  id: string;
-  profileId: string;       // GPM profile ID (user-defined string)
-  profileName: string;
-  status: ProfileStatus;
-  note?: string;
-  createdAt: Timestamp;
-  fbUid?: string;          // Facebook User ID (UID)
-  fbName?: string;         // Tên hiển thị Facebook
-  fbAvatar?: string;       // URL ảnh đại diện Facebook
-  fbUrl?: string;          // Link trang cá nhân
-  fbIsLoggedIn?: boolean;  // Trạng thái đăng nhập
-  fbSyncedAt?: Timestamp;  // Lần đồng bộ cuối
-}
+export type CommentTone = "sinh_viên" | "người_đi_làm" | "người_mới" | "mixed" | "redirect";
 
-export interface SeedingCampaign {
-  id: string;
-  name: string;
-  description?: string;
-  status: CampaignStatus;
-  targetUrl?: string;      // URL mặc định cho tasks trong campaign
-  scheduledAt?: Timestamp; // Thời gian hẹn giờ chạy tự động
-  isTemplate?: boolean;    // Đánh dấu chiến dịch mẫu
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+export type CommentType = "bait" | "redirect";
 
-export interface SeedingTask {
-  id: string;
-  campaignId: string;
-  profileId: string;
-  profileName: string;
-  action: SeedingAction;
-  targetUrl: string;
-  commentText?: string;    // Chỉ dùng khi action === "comment"
-  shareCaption?: string;   // Chỉ dùng khi action === "share"
-  delayMin: number;        // Giây — GPM dùng để randomize delay
-  delayMax: number;
-  totalFiles?: number;
-  status: TaskStatus;
-  retryCount?: number;     // Số lần đã tự động chạy lại khi lỗi
-  errorMessage?: string;
-  finishedAt?: Timestamp;
-  exportedAt?: Timestamp;
-  createdAt: Timestamp;
-}
+export type PostStatus = "draft" | "ready" | "used" | "archived";
 
+export type GroupStatus = "active" | "inactive";
+
+// Comment
 export interface SeedingComment {
   id: string;
-  text: string;
-  tags: string[];
-  usageCount: number;
-  createdAt: Timestamp;
+  postId: string;
+  content: string;
+  tone: CommentTone;
+  type: CommentType;
+  used: boolean;
+  usedAt?: Date;
+  createdAt: Date;
 }
 
-// ── Excel/CSV bridge types ────────────────────────────────────────────────────
-
-/** Row xuất ra Excel/CSV cho GPM Automate */
-export interface TaskExportRow {
-  task_id: string;
-  profile_id: string;
-  profile_name: string;
-  action: string;
-  target_url: string;
-  comment_text: string;
-  share_caption: string;
-  delay_min: number;
-  delay_max: number;
+// Group
+export interface SeedingGroup {
+  id: string;
+  name: string;
+  url: string;
+  category: GroupCategory;
+  status: GroupStatus;
+  memberCount?: number;
+  createdAt: Date;
+  lastUsedAt?: Date;
 }
 
-/** Row đọc từ report Excel/CSV của GPM Automate */
-export interface TaskReportRow {
-  task_id: string;
-  profile_id: string;
-  action: string;
-  target_url: string;
-  status: string;
-  error_message: string;
-  finished_at: string;
+// Post
+export interface SeedingPost {
+  id: string;
+  title: string;
+  content: string;
+  category: SeedingCategory;
+  groupType?: GroupType;
+  targetGroup?: string;
+  status: PostStatus;
+  comments: SeedingComment[];
+  goal: string;
+  createdAt: Date;
+  scheduledAt?: Date;
+  usedAt?: Date;
 }
 
-/** Row import profiles từ Excel/CSV */
-export interface ProfileImportRow {
-  profile_id: string;
-  profile_name: string;
-  status?: string;
-  note?: string;
-}
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
-
-export interface SeedingStats {
-  total: number;
-  scheduled: number;
-  pending: number;
-  running: number;
-  success: number;
-  failed: number;
-  skipped: number;
-  likeCount: number;
+// Input
+export interface GeneratePostInput {
+  sourceContent: string;
+  topic: string;
+  groupType: SeedingCategory;
   commentCount: number;
-  shareCount: number;
-  successRate: number;   // 0–100, tính trên total đã chạy (loại pending/running)
+}
+
+// AI Results
+export interface PostAnalysis {
+  category: SeedingCategory;
+  userNeed: string;
+  psychology: string;
+  seedingGoal: string;
+  suggestedTone: CommentTone;
+  groupType: GroupType;
+}
+
+export interface SeedPostResult {
+  title: string;
+  content: string;
+  category: SeedingCategory;
+  psychology: string;
+  postId: string;
+}
+
+export interface BaitCommentsResult {
+  postId: string;
+  comments: string[];
+  commentObjects: SeedingComment[];
+}
+
+export interface RedirectEngineResult {
+  postId: string;
+  originalPost: string;
+  detectedCategory: SeedingCategory;
+  mappedGroupCategory: GroupCategory;
+  targetGroup: SeedingGroup | null;
+  redirectComment: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+// History & Stats
+export interface SeedingHistory {
+  usedTitles: string[];
+  usedComments: string[];
+  usedTopics: string[];
+  lastGeneratedAt?: Date;
+}
+
+export interface DailyStats {
+  date: string;
+  posts_count: number;
+  comments_count: number;
+  redirect_count: number;
+  categories_used: SeedingCategory[];
+  groups_used: string[];
+}
+
+export interface PostWithCounts extends SeedingPost {
+  commentCount: number;
+  baitCount: number;
+  redirectCount: number;
+  usedCommentCount: number;
+}
+
+export interface WeeklyStat {
+  date: string;
+  posts: number;
+  comments: number;
+  used: number;
+}
+
+export interface CategoryStats {
+  category: SeedingCategory;
+  count: number;
+  comments: number;
+  percentage: number;
 }

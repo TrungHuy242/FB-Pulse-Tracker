@@ -1,37 +1,22 @@
 /**
  * AnalyticsPage — Trang phân tích sâu.
- * Charts: Timeline, Pie (reaction types), Heatmap, Top Commenters,
- *         SentimentChart, InsightsPanel, AI Summary.
+ * Charts: Timeline, Pie (reaction types), AI Summary.
  * Filter state được sync lên URL query string để dễ share và restore.
  */
 import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Row, Col, Button, DatePicker, Select, Space, Tooltip, Skeleton } from "antd";
-import { RobotOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { AppLayout } from "@/layouts/AppLayout";
-import { InsightsPanel } from "@/components/InsightsPanel";
-import AiSummaryPanel from "@/components/AiSummaryPanel";
 import { PrintReportButton } from "@/components/PrintReportButton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAllEngagement } from "@/hooks/useAllEngagement";
 import { getAccountNames } from "@/service/importService";
-import {
-  summarizeCommentsWithAI,
-  type SummaryResult,
-  SUMMARY_LIMIT,
-} from "@/service/aiSummaryService";
 import type { StatsFilter } from "@/types";
 import { DatePresets } from "@/components/DatePresets";
-import PerformanceScoreTable from "@/components/PerformanceScoreTable";
 
 // Lazy-load heavy chart components — splits them into separate JS chunks
-const TimelineChart      = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
-const ReactionPieChart   = lazy(() => import("@/components/charts/ReactionPieChart").then(m => ({ default: m.ReactionPieChart })));
-const ActivityHeatmap    = lazy(() => import("@/components/charts/ActivityHeatmap").then(m => ({ default: m.ActivityHeatmap })));
-const TopCommentersChart = lazy(() => import("@/components/charts/TopCommentersChart").then(m => ({ default: m.TopCommentersChart })));
-const SentimentChart     = lazy(() => import("@/components/charts/SentimentChart").then(m => ({ default: m.SentimentChart })));
-const KeywordFreqChart   = lazy(() => import("@/components/charts/KeywordFreqChart").then(m => ({ default: m.KeywordFreqChart })));
+const TimelineChart = lazy(() => import("@/components/charts/TimelineChart").then(m => ({ default: m.TimelineChart })));
 
 function ChartSkeleton({ height = 280 }: { height?: number }) {
   return (
@@ -84,12 +69,6 @@ export default function AnalyticsPage() {
   });
   const [refreshSignal, setRefreshSignal] = useState(0);
 
-  // AI Summary state
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(null);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-
   const fromTime = appliedFilter.from?.getTime() ?? null;
   const toTime = appliedFilter.to?.getTime() ?? null;
   const filterName = appliedFilter.name ?? null;
@@ -124,32 +103,8 @@ export default function AnalyticsPage() {
     getAccountNames().then(setAccountOptions).catch(console.error);
   }, []);
 
-  // Load engagement data once for InsightsPanel + SentimentChart + AI Summary
-  const { comments, reactions, loading: engLoading } = useAllEngagement(effectiveFilter, refreshSignal);
-
-  // ── AI Summary ─────────────────────────────────────────────────────────────
-
-  const handleAiSummary = useCallback(async () => {
-    if (comments.length === 0) return;
-    setSummaryOpen(true);
-    setSummaryLoading(true);
-    setSummaryResult(null);
-    setSummaryError(null);
-
-    const accountName = Array.isArray(appliedFilter.name)
-      ? appliedFilter.name.join(", ")
-      : (appliedFilter.name ?? undefined);
-
-    const input = comments.slice(0, SUMMARY_LIMIT).map((c, i) => ({
-      id: `c${i}`,
-      content: (c as { content?: string }).content ?? "",
-    }));
-
-    const { result, error } = await summarizeCommentsWithAI(input, accountName);
-    setSummaryResult(result);
-    setSummaryError(error);
-    setSummaryLoading(false);
-  }, [comments, appliedFilter.name]);
+  // Load engagement data
+  const { comments } = useAllEngagement(effectiveFilter, refreshSignal);
 
   const handleFilter = () => {
     let from: Date | undefined;
@@ -247,63 +202,11 @@ export default function AnalyticsPage() {
       </div>
       <Button type="primary" size="small" onClick={handleFilter}>Lọc</Button>
       <Button size="small" onClick={handleClear}>Xóa lọc</Button>
-      <Button
-        size="small"
-        icon={<RobotOutlined />}
-        loading={summaryLoading}
-        disabled={engLoading || comments.length === 0}
-        onClick={handleAiSummary}
-        title={`Tóm tắt AI (tối đa ${SUMMARY_LIMIT} bình luận)`}
-      >
-        Tóm tắt AI
-      </Button>
-      <PrintReportButton
-        title="Báo cáo Analytics"
-        dateLabel={
-          effectiveFilter?.from && effectiveFilter?.to
-            ? `${dayjs(effectiveFilter.from).format("D/M/YYYY")} – ${dayjs(effectiveFilter.to).format("D/M/YYYY")}`
-            : "Tất cả"
-        }
-        size="small"
-      />
     </Space>
   );
 
   return (
     <AppLayout title="Analytics" topBar={topBar}>
-      {/* AI Summary Panel — visible after clicking "Tóm tắt AI" */}
-      {summaryOpen && (
-        <div style={{ marginBottom: 20 }}>
-          <AiSummaryPanel
-            loading={summaryLoading}
-            result={summaryResult}
-            error={summaryError}
-            onClose={() => { setSummaryOpen(false); setSummaryResult(null); }}
-            onRetry={handleAiSummary}
-          />
-        </div>
-      )}
-
-      {/* Row 0: Insights + Sentiment (data from shared hook) */}
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24} md={14}>
-          <ErrorBoundary inline section="Auto Insights">
-            <InsightsPanel
-              comments={comments}
-              reactions={reactions}
-              loading={engLoading}
-            />
-          </ErrorBoundary>
-        </Col>
-        <Col xs={24} md={10}>
-          <ErrorBoundary inline section="Phân tích cảm xúc">
-            <Suspense fallback={<ChartSkeleton height={260} />}>
-              <SentimentChart comments={comments} loading={engLoading} />
-            </Suspense>
-          </ErrorBoundary>
-        </Col>
-      </Row>
-
       {/* Row 1: Timeline (full width) */}
       <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
         <Col xs={24}>
@@ -311,55 +214,6 @@ export default function AnalyticsPage() {
             <Suspense fallback={<ChartSkeleton height={300} />}>
               <TimelineChart filter={effectiveFilter} refreshSignal={refreshSignal} />
             </Suspense>
-          </ErrorBoundary>
-        </Col>
-      </Row>
-
-      {/* Row 2: Pie chart + Heatmap */}
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24} md={10}>
-          <ErrorBoundary inline section="Phân bổ Reaction">
-            <Suspense fallback={<ChartSkeleton height={260} />}>
-              <ReactionPieChart filter={effectiveFilter} refreshSignal={refreshSignal} />
-            </Suspense>
-          </ErrorBoundary>
-        </Col>
-        <Col xs={24} md={14}>
-          <ErrorBoundary inline section="Heatmap hoạt động">
-            <Suspense fallback={<ChartSkeleton height={260} />}>
-              <ActivityHeatmap filter={effectiveFilter} refreshSignal={refreshSignal} />
-            </Suspense>
-          </ErrorBoundary>
-        </Col>
-      </Row>
-
-      {/* Row 3: Top Commenters */}
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24}>
-          <ErrorBoundary inline section="Top Commenters">
-            <Suspense fallback={<ChartSkeleton height={260} />}>
-              <TopCommentersChart filter={effectiveFilter} refreshSignal={refreshSignal} limit={10} />
-            </Suspense>
-          </ErrorBoundary>
-        </Col>
-      </Row>
-
-      {/* Row 4: Keyword Frequency — top từ khóa trong bình luận */}
-      <Row gutter={[20, 20]} style={{ marginBottom: 20 }}>
-        <Col xs={24}>
-          <ErrorBoundary inline section="Từ khóa bình luận">
-            <Suspense fallback={<ChartSkeleton height={300} />}>
-              <KeywordFreqChart comments={comments} topN={20} />
-            </Suspense>
-          </ErrorBoundary>
-        </Col>
-      </Row>
-
-      {/* Row 5: Content Performance Score */}
-      <Row gutter={[20, 20]}>
-        <Col xs={24}>
-          <ErrorBoundary inline section="Performance Score">
-            <PerformanceScoreTable filter={effectiveFilter} />
           </ErrorBoundary>
         </Col>
       </Row>

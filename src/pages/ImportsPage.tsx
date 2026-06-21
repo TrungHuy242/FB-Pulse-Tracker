@@ -5,14 +5,11 @@
  * từ tab/thiết bị khác (không ảnh hưởng đến pagination hiện tại).
  */
 import { useRef, useState, useMemo, useEffect, useCallback } from "react";
-import { Alert, Button, DatePicker, Select, Space, Tooltip, Modal, message, Card, Row, Col, Statistic } from "antd";
+import { Alert, Button, DatePicker, Select, Space, Tooltip, Modal, message } from "antd";
 import {
   FileTextOutlined,
   SyncOutlined,
   DeleteOutlined,
-  DatabaseOutlined,
-  SlidersOutlined,
-  HeartOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -225,7 +222,7 @@ export default function ImportsPage() {
   );
 
   return (
-    <AppLayout title="Imports Management" topBar={topBar}>
+    <AppLayout title="Quản lý Import" topBar={topBar}>
       {/* Banner thông báo khi có dữ liệu mới từ tab/thiết bị khác */}
       {hasNewData && (
         <Alert
@@ -258,78 +255,6 @@ export default function ImportsPage() {
         refreshSignal={refreshSignal}
         onDataChange={() => setRefreshSignal((s) => s + 1)}
       />
-
-      {/* System Status / Health cards at the bottom (Stitch design) */}
-      <div style={{ marginTop: 24 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={8}>
-            <Card
-              bordered
-              style={{
-                borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Storage Utilized</span>}
-                value="24.8 GB"
-                prefix={<DatabaseOutlined style={{ color: "#10b981", marginRight: 8 }} />}
-                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
-              />
-              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
-                Dung lượng dữ liệu ZIP đã phân tích
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Card
-              bordered
-              style={{
-                borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Active Processors</span>}
-                value={4}
-                suffix="/ 8 Threads"
-                prefix={<SlidersOutlined style={{ color: "#3b82f6", marginRight: 8 }} />}
-                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
-              />
-              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
-                Số tiến trình giải nén song song hoạt động
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Card
-              bordered
-              style={{
-                borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
-              }}
-              styles={{ body: { padding: 16 } }}
-            >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Data Health</span>}
-                value="99.9%"
-                prefix={<HeartOutlined style={{ color: "#ef4444", marginRight: 8 }} />}
-                valueStyle={{ fontSize: 20, fontWeight: 600, color: isDark ? "#ffffff" : "#171717" }}
-              />
-              <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 4 }}>
-                Tỷ lệ dữ liệu import hợp lệ không lỗi
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      </div>
 
       <ImportZip ref={importRef} onImportSuccess={handleImportSuccess} />
     </AppLayout>

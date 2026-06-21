@@ -6,7 +6,6 @@ import { StatsCards } from "@/components/StatsCards";
 import { AccountsTable } from "@/components/AccountsTable";
 import { WelcomeEmptyState } from "@/components/WelcomeEmptyState";
 import { TopProfiles } from "@/components/TopProfiles";
-import { SentimentEfficiency } from "@/components/SentimentEfficiency";
 import { useRef, useState, useMemo, useCallback, lazy, Suspense } from "react";
 import { Button, DatePicker, Select, Tooltip, Space } from "antd";
 
@@ -204,7 +203,7 @@ export default function HomePage() {
   const showWelcome = !importsLoading && allImports.length === 0;
 
   return (
-    <AppLayout title="Overview" topBar={topBar}>
+    <AppLayout title="Tổng quan" topBar={topBar}>
       {/* ── Onboarding empty state ── */}
       {showWelcome ? (
         <WelcomeEmptyState onImport={() => importRef.current?.open()} />
@@ -241,12 +240,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Row 3: Sentiment */}
-          <div style={{ marginBottom: 24 }}>
-            <SentimentEfficiency />
-          </div>
-
-          {/* Row 4: AccountsTable */}
+          {/* Row 3: AccountsTable */}
           <div style={{ marginTop: 24 }}>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "var(--page-title)" }}>
               Quản lý Imports

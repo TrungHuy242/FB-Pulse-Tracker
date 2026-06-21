@@ -17,7 +17,6 @@ import {
   Card,
   Row,
   Col,
-  Statistic,
   Tabs,
   Result,
 } from "antd";
@@ -31,6 +30,7 @@ import {
   SafetyCertificateOutlined,
   HomeOutlined,
   CopyOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLoading } from "@/contexts/LoadingContext";
@@ -67,6 +67,15 @@ const AdminPage: React.FC = () => {
   const isEditingSelf = !!(
     editing && user?.allowedAccountId && editing.id === user.allowedAccountId
   );
+
+  // Design tokens from DESIGN.md
+  const primaryColor = "#3ecf8e";
+  const primaryDeep = "#24b47e";
+  const inkColor = "#171717";
+  const inkMute = "#707070";
+  const hairline = "#dfdfdf";
+  const canvasNight = "#0f0f11";
+  const canvasSoft = "#fafafa";
 
   const generateTemporaryPassword = () => {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%";
@@ -114,9 +123,11 @@ const AdminPage: React.FC = () => {
   }, [user?.role]);
 
   // Theme colors
-  const textColor = isDark ? "#ffffff" : "#171717";
-  const muteColor = isDark ? "#9ca3af" : "#707070";
-  const borderColor = isDark ? "#2a2a32" : "#dfdfdf";
+  const textColor = isDark ? "#f3f4f6" : inkColor;
+  const muteColor = isDark ? "#9ca3af" : inkMute;
+  const borderColor = isDark ? "#2a2a32" : hairline;
+  const bgColor = isDark ? canvasNight : canvasSoft;
+  const cardBg = isDark ? "#16161a" : "#ffffff";
 
   // Tính số lượng admin
   const adminCount = useMemo(() => items.filter((item) => item.role === 1).length, [items]);
@@ -261,7 +272,7 @@ const AdminPage: React.FC = () => {
           content: (
             <div>
               <p style={{ color: "#dc2626", fontWeight: 600, margin: "0 0 4px" }}>Toàn bộ dữ liệu sẽ bị xóa vĩnh viễn.</p>
-              <p style={{ color: isDark ? "#9ca3af" : "#5a5a5a", fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
+              <p style={{ color: muteColor, fontSize: 13 }}>Không thể khôi phục sau khi xác nhận.</p>
             </div>
           ),
           okText: "Xóa tất cả",
@@ -292,149 +303,151 @@ const AdminPage: React.FC = () => {
 
   const columns = [
     {
-      title: "ADMIN / USER",
+      title: "NGƯỜI DÙNG",
       dataIndex: "displayName",
       key: "displayName",
       render: (text: string) => (
         <Space size={10}>
           <div
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: isDark ? "#24242b" : "#e5e7eb",
-              color: isDark ? "#10b981" : "#171717",
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: isDark
+                ? "linear-gradient(135deg, rgba(62, 207, 142, 0.2) 0%, rgba(36, 180, 126, 0.1) 100%)"
+                : "linear-gradient(135deg, rgba(62, 207, 142, 0.15) 0%, rgba(62, 207, 142, 0.05) 100%)",
+              color: primaryColor,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 14,
             }}
           >
             {getInitials(text)}
           </div>
-          <span style={{ color: isDark ? "#ffffff" : "#171717", fontWeight: 600 }}>{text}</span>
+          <span style={{ color: textColor, fontWeight: 600, fontSize: 14 }}>{text}</span>
         </Space>
       ),
     },
     {
-      title: "TÀI KHOẢN EMAIL",
+      title: "EMAIL",
       dataIndex: "email",
       key: "email",
-      render: (text: string) => <span style={{ color: isDark ? "#d1d5db" : "#374151" }}>{text}</span>,
+      render: (text: string) => <span style={{ color: muteColor, fontSize: 13 }}>{text}</span>,
     },
     {
-      title: "FIREBASE UID",
+      title: "UID",
       dataIndex: "id",
       key: "id",
-      width: 220,
+      width: 180,
       render: (text: string) => (
-        <code style={{ color: isDark ? "#d1d5db" : "#374151", fontSize: 11 }}>{text}</code>
+        <code style={{ 
+          color: muteColor, 
+          fontSize: 11, 
+          background: isDark ? "#1d1d22" : "#f5f5f5",
+          padding: "2px 6px",
+          borderRadius: 4,
+          fontFamily: "ui-monospace, Menlo, Monaco, Consolas"
+        }}>
+          {text.slice(0, 12)}...
+        </code>
       ),
     },
     {
       title: "QUYỀN HẠN",
       dataIndex: "role",
       key: "role",
-      width: 120,
+      width: 140,
       render: (r: number) =>
         r === 1 ? (
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
-              padding: "2px 8px",
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-              background: isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)",
-              color: "#10b981",
+              gap: 6,
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              background: isDark ? "rgba(62, 207, 142, 0.15)" : "rgba(62, 207, 142, 0.1)",
+              color: primaryColor,
+              border: `1px solid ${isDark ? "rgba(62, 207, 142, 0.3)" : "rgba(62, 207, 142, 0.2)"}`,
             }}
           >
-            ADMIN
+            <SafetyCertificateOutlined style={{ fontSize: 11 }} />
+            Admin
           </span>
         ) : (
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
-              padding: "2px 8px",
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-              background: isDark ? "rgba(156, 163, 175, 0.15)" : "rgba(229, 231, 235, 0.8)",
-              color: isDark ? "#9ca3af" : "#707070",
+              gap: 6,
+              padding: "4px 10px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              background: isDark ? "rgba(156, 163, 175, 0.1)" : "rgba(229, 231, 235, 0.6)",
+              color: muteColor,
             }}
           >
-            READ-ONLY
+            <UserOutlined style={{ fontSize: 11 }} />
+            Viewer
           </span>
         ),
     },
     {
-      title: "LAST ACTIVITY",
-      key: "lastActivity",
-      width: 150,
-      render: (_: unknown, record: AllowedAccount) => {
-        let hash = 0;
-        const idStr = record.id || "";
-        for (let i = 0; i < idStr.length; i++) {
-          hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const hours = Math.abs(hash % 24);
-        return (
-          <span style={{ fontSize: 12, color: isDark ? "#9ca3af" : "#6b7280" }}>
-            {hours === 0 ? "Vừa xong" : `${hours} giờ trước`}
-          </span>
-        );
-      },
-    },
-    {
-      title: "SECURITY TIER",
-      key: "securityTier",
-      width: 130,
-      render: (_: unknown, record: AllowedAccount) => {
-        const isHigh = record.role === 1;
-        return (
+      title: "TRẠNG THÁI",
+      key: "status",
+      width: 120,
+      render: () => (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            color: "#10b981",
+          }}
+        >
           <span
             style={{
-              fontSize: 11,
-              color: isHigh ? "#10b981" : "#f59e0b",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#10b981",
+              boxShadow: "0 0 6px rgba(16, 185, 129, 0.5)",
             }}
-          >
-            <SafetyCertificateOutlined style={{ fontSize: 11 }} />
-            {isHigh ? "MFA Required" : "Standard"}
-          </span>
-        );
-      },
+          />
+          Active
+        </span>
+      ),
     },
     ...(user?.role === 1
       ? [
           {
-            title: "HÀNH ĐỘNG",
+            title: "",
             key: "actions",
             align: "center" as const,
-            width: 110,
+            width: 100,
             render: (_: unknown, record: AllowedAccount) => (
-              <Space size={6}>
+              <Space size={4}>
                 <Button
+                  type="text"
                   size="small"
                   icon={<EditOutlined />}
                   onClick={() => openEdit(record)}
                   title="Sửa tài khoản"
+                  style={{ color: muteColor }}
                 />
                 <Button
+                  type="text"
                   size="small"
                   icon={<DeleteOutlined />}
-                  danger
                   onClick={() => handleDelete(record.id)}
                   title="Xóa tài khoản"
+                  style={{ color: "#ef4444" }}
                 />
               </Space>
             ),
@@ -448,34 +461,65 @@ const AdminPage: React.FC = () => {
       <main
         className="admin-page"
         style={{
-          background: isDark ? "#0f0f11" : "#f3f4f6",
+          background: bgColor,
           minHeight: "100vh",
-          padding: "24px 16px",
+          padding: 24,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
         <Card
-          bordered
+          bordered={false}
           style={{
             width: "100%",
-            maxWidth: 520,
+            maxWidth: 480,
             borderRadius: 12,
-            background: isDark ? "#16161a" : "#ffffff",
-            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            boxShadow: isDark
+              ? "0 25px 50px rgba(0, 0, 0, 0.4)"
+              : "0 4px 6px rgba(0, 0, 0, 0.02), 0 20px 40px rgba(0, 0, 0, 0.06)",
           }}
         >
           <Result
             status="403"
-            title={<span style={{ color: textColor }}>Không có quyền quản trị</span>}
+            icon={
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 16,
+                  background: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto",
+                }}
+              >
+                <SafetyCertificateOutlined style={{ fontSize: 28, color: "#ef4444" }} />
+              </div>
+            }
+            title={<span style={{ color: textColor, fontSize: 20, fontWeight: 600 }}>Không có quyền quản trị</span>}
             subTitle={
-              <span style={{ color: muteColor }}>
+              <span style={{ color: muteColor, fontSize: 14 }}>
                 Tài khoản viewer chỉ được xem dữ liệu. Quản lý whitelist và dữ liệu hệ thống chỉ dành cho admin.
               </span>
             }
             extra={
-              <Button type="primary" icon={<HomeOutlined />} onClick={() => navigate("/")}>
+              <Button
+                type="primary"
+                icon={<HomeOutlined />}
+                onClick={() => navigate("/")}
+                style={{
+                  background: primaryColor,
+                  borderColor: primaryColor,
+                  color: "#171717",
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  height: 40,
+                }}
+              >
                 Về dashboard
               </Button>
             }
@@ -489,7 +533,7 @@ const AdminPage: React.FC = () => {
     <main
       className="admin-page"
       style={{
-        background: isDark ? "#0f0f11" : "#f3f4f6",
+        background: bgColor,
         minHeight: "100vh",
         padding: "24px 16px",
         transition: "background 0.3s",
@@ -497,87 +541,110 @@ const AdminPage: React.FC = () => {
     >
       <div
         style={{
-          maxWidth: 1040,
+          maxWidth: 1200,
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: 20,
+          gap: 24,
         }}
       >
-        {/* Top Header Card */}
+        {/* Header */}
         <Card
-          bordered
+          bordered={false}
           style={{
             borderRadius: 12,
-            background: isDark ? "#16161a" : "#ffffff",
-            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            boxShadow: isDark
+              ? "0 4px 12px rgba(0, 0, 0, 0.2)"
+              : "0 1px 3px rgba(0, 0, 0, 0.04)",
           }}
-          styles={{ body: { padding: 16 } }}
+          styles={{ body: { padding: 20 } }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              width: "100%",
               flexWrap: "wrap",
-              gap: 16,
+              gap: 20,
             }}
           >
-            {/* Title / Back */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-              <Button
-                type="text"
-                icon={<HomeOutlined />}
-                onClick={() => navigate("/")}
-                title="Về trang chủ"
-              />
+            {/* Logo & Title */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryDeep} 100%)`,
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: `0 4px 12px rgba(62, 207, 142, 0.3)`,
+                }}
+              >
+                <BarChartOutlined style={{ fontSize: 24, color: "#171717" }} />
+              </div>
               <div>
                 <h1
                   style={{
                     margin: 0,
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: 700,
-                    color: isDark ? "#ffffff" : "#171717",
-                    letterSpacing: "-0.01em",
+                    color: textColor,
+                    letterSpacing: "-0.02em",
                   }}
                 >
-                  Whitelist Control Panel
+                  Quản trị hệ thống
                 </h1>
-                <p style={{ margin: 0, fontSize: 12, color: isDark ? "#9ca3af" : "#707070" }}>
-                  Quản lý quyền hạn và tài khoản được phép truy cập FB Pulse Tracker
+                <p style={{ margin: 0, fontSize: 13, color: muteColor }}>
+                  Quản lý quyền hạn và tài khoản truy cập
                 </p>
               </div>
             </div>
 
-            {/* Top Buttons */}
-            <Space size={8}>
+            {/* Actions */}
+            <Space size={10}>
+              <Button
+                onClick={() => navigate("/")}
+                icon={<HomeOutlined />}
+                style={{
+                  borderRadius: 8,
+                  borderColor: borderColor,
+                  color: muteColor,
+                  background: isDark ? "#1d1d22" : "#ffffff",
+                }}
+              >
+                Dashboard
+              </Button>
               {user && user.role === 1 && (
                 <Button
                   danger
-                  size="small"
                   icon={<DeleteOutlined />}
                   onClick={handleDeleteAllImports}
                   style={{
+                    borderRadius: 8,
                     background: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.08)",
                     border: "none",
                     fontWeight: 500,
                   }}
                 >
-                  Xóa tất cả Import
+                  Xóa dữ liệu
                 </Button>
               )}
               {user && user.role === 1 && (
                 <Button
                   type="primary"
-                  size="small"
                   icon={<PlusOutlined style={{ color: "#171717" }} />}
                   onClick={openAdd}
                   style={{
-                    background: "#10b981",
-                    borderColor: "#10b981",
+                    background: primaryColor,
+                    borderColor: primaryColor,
                     color: "#171717",
                     fontWeight: 600,
+                    borderRadius: 8,
+                    boxShadow: `0 4px 12px rgba(62, 207, 142, 0.25)`,
                   }}
                 >
                   Thêm thành viên
@@ -587,87 +654,132 @@ const AdminPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* 3 Stats Panel (Stitch design) */}
+        {/* Stats Row */}
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={8}>
             <Card
-              bordered
+              bordered={false}
               style={{
                 borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+                background: cardBg,
+                border: `1px solid ${borderColor}`,
+                boxShadow: isDark
+                  ? "0 4px 12px rgba(0, 0, 0, 0.2)"
+                  : "0 1px 3px rgba(0, 0, 0, 0.04)",
               }}
-              styles={{ body: { padding: 16 } }}
+              styles={{ body: { padding: 20 } }}
             >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Total Users</span>}
-                value={items.length}
-                prefix={<UserOutlined style={{ color: "#10b981", marginRight: 8 }} />}
-                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: isDark ? "rgba(62, 207, 142, 0.15)" : "rgba(62, 207, 142, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <UserOutlined style={{ fontSize: 22, color: primaryColor }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: textColor, lineHeight: 1 }}>
+                    {items.length}
+                  </div>
+                  <div style={{ fontSize: 13, color: muteColor, marginTop: 4 }}>Tổng người dùng</div>
+                </div>
+              </div>
             </Card>
           </Col>
           <Col xs={24} sm={8}>
             <Card
-              bordered
+              bordered={false}
               style={{
                 borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+                background: cardBg,
+                border: `1px solid ${borderColor}`,
+                boxShadow: isDark
+                  ? "0 4px 12px rgba(0, 0, 0, 0.2)"
+                  : "0 1px 3px rgba(0, 0, 0, 0.04)",
               }}
-              styles={{ body: { padding: 16 } }}
+              styles={{ body: { padding: 20 } }}
             >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Administrators</span>}
-                value={adminCount}
-                prefix={<SafetyCertificateOutlined style={{ color: "#3b82f6", marginRight: 8 }} />}
-                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: isDark ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <SafetyCertificateOutlined style={{ fontSize: 22, color: "#6366f1" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: textColor, lineHeight: 1 }}>
+                    {adminCount}
+                  </div>
+                  <div style={{ fontSize: 13, color: muteColor, marginTop: 4 }}>Quản trị viên</div>
+                </div>
+              </div>
             </Card>
           </Col>
           <Col xs={24} sm={8}>
             <Card
-              bordered
+              bordered={false}
               style={{
                 borderRadius: 12,
-                background: isDark ? "#16161a" : "#ffffff",
-                borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+                background: cardBg,
+                border: `1px solid ${borderColor}`,
+                boxShadow: isDark
+                  ? "0 4px 12px rgba(0, 0, 0, 0.2)"
+                  : "0 1px 3px rgba(0, 0, 0, 0.04)",
               }}
-              styles={{ body: { padding: 16 } }}
+              styles={{ body: { padding: 20 } }}
             >
-              <Statistic
-                title={<span style={{ color: isDark ? "#9ca3af" : "#707070", fontSize: 12 }}>Active Now</span>}
-                value={Math.max(1, Math.min(items.length, 3))}
-                prefix={
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "#10b981",
-                      display: "inline-block",
-                      marginRight: 8,
-                      marginBottom: 3,
-                    }}
-                  />
-                }
-                valueStyle={{ fontSize: 22, fontWeight: 700, color: isDark ? "#ffffff" : "#171717" }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: isDark ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <SafetyCertificateOutlined style={{ fontSize: 22, color: "#10b981" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: textColor, lineHeight: 1 }}>
+                    {items.length}
+                  </div>
+                  <div style={{ fontSize: 13, color: muteColor, marginTop: 4 }}>Đang hoạt động</div>
+                </div>
+              </div>
             </Card>
           </Col>
         </Row>
 
-        {/* Main Database Card with Filters & Table */}
+        {/* Table Card */}
         <Card
-          bordered
+          bordered={false}
           style={{
             borderRadius: 12,
-            background: isDark ? "#16161a" : "#ffffff",
-            borderColor: isDark ? "#2a2a32" : "#dfdfdf",
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            boxShadow: isDark
+              ? "0 4px 12px rgba(0, 0, 0, 0.2)"
+              : "0 1px 3px rgba(0, 0, 0, 0.04)",
           }}
           styles={{ body: { padding: 24 } }}
         >
-          {/* Filters & Search Toolbar */}
+          {/* Toolbar */}
           <div
             style={{
               display: "flex",
@@ -675,175 +787,190 @@ const AdminPage: React.FC = () => {
               alignItems: "center",
               flexWrap: "wrap",
               gap: 16,
-              marginBottom: 16,
+              marginBottom: 20,
             }}
           >
-            {/* Tabs Filter */}
             <Tabs
               activeKey={activeTab}
               onChange={setActiveTab}
               size="small"
-              style={{ flex: 1, minWidth: 260, marginBottom: 0 }}
+              style={{ marginBottom: 0 }}
               items={[
                 { key: "all", label: `Tất cả (${items.length})` },
-                { key: "admins", label: `Admins (${adminCount})` },
-                { key: "readonly", label: `Read-only (${items.length - adminCount})` },
+                { key: "admins", label: `Admin (${adminCount})` },
+                { key: "readonly", label: `Viewer (${items.length - adminCount})` },
               ]}
             />
 
-            {/* Search Input */}
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <Input
-                prefix={<SearchOutlined style={{ color: isDark ? "#6b7280" : "#9a9a9a" }} />}
-                placeholder="Tìm theo email hoặc tên..."
-                value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                allowClear
-                size="middle"
-                style={{
-                  width: 260,
-                  borderRadius: 6,
-                  background: isDark ? "#1d1d22" : "#ffffff",
-                  borderColor: borderColor,
-                  color: textColor,
-                }}
-              />
-            </div>
+            <Input
+              prefix={<SearchOutlined style={{ color: muteColor }} />}
+              placeholder="Tìm kiếm..."
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+              allowClear
+              style={{
+                width: 240,
+                borderRadius: 8,
+                background: isDark ? "#1d1d22" : "#ffffff",
+                borderColor: borderColor,
+                color: textColor,
+              }}
+            />
           </div>
 
           {searchQuery && (
-            <div style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 12, color: muteColor }}>
-                Tìm thấy {filteredItems.length} kết quả lọc.
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: muteColor }}>
+                Tìm thấy {filteredItems.length} kết quả
               </Text>
             </div>
           )}
 
-          {/* User Table */}
+          {/* Table */}
           <Table
             columns={columns}
             dataSource={filteredItems}
             rowKey={(r: AllowedAccount) => r.id}
             loading={loading}
             pagination={false}
-            scroll={{ x: 1000 }}
+            scroll={{ x: 900 }}
             className="custom-table"
+            rowStyle={{
+              background: cardBg,
+            }}
           />
         </Card>
 
-        {/* Modal Thêm/Sửa */}
+        {/* Modal */}
         <Modal
           title={
-            <span style={{ fontSize: 16, fontWeight: 700, color: textColor }}>
-              {editing ? "Chỉnh sửa tài khoản" : "Thêm thành viên nội bộ"}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: isDark ? "rgba(62, 207, 142, 0.15)" : "rgba(62, 207, 142, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <UserOutlined style={{ color: primaryColor }} />
+              </div>
+              <span style={{ fontSize: 16, fontWeight: 600, color: textColor }}>
+                {editing ? "Chỉnh sửa tài khoản" : "Thêm thành viên mới"}
+              </span>
+            </div>
           }
           open={isModalOpen}
           onOk={handleSave}
           onCancel={() => setIsModalOpen(false)}
+          okText={editing ? "Lưu thay đổi" : "Thêm thành viên"}
+          cancelText="Hủy"
           okButtonProps={{
             disabled: !email || !displayName || (!editing && !password.trim()),
-            style: { background: "#10b981", borderColor: "#10b981", color: "#171717", fontWeight: 600 },
+            style: {
+              background: primaryColor,
+              borderColor: primaryColor,
+              color: "#171717",
+              fontWeight: 600,
+              borderRadius: 8,
+            },
+          }}
+          cancelButtonProps={{
+            style: { borderRadius: 8 },
           }}
           centered
+          width={480}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 12 }}>
-            <div>
-              {editing ? (
-                <>
-                  <label htmlFor="admin-uid-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                    Firebase UID
-                  </label>
-                  <Input
-                    id="admin-uid-input"
-                    placeholder="UID từ Firebase Authentication"
-                    value={uid}
-                    disabled
-                    style={{ borderRadius: 6 }}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 16 }}>
+            {!editing && (
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 600, color: textColor }}>
+                  Mật khẩu <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Input.Password
+                    placeholder="Mật khẩu cho thành viên"
+                    value={password}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    style={{ borderRadius: "8px 0 0 8px" }}
                   />
-                  <div style={{ marginTop: 6, color: muteColor, fontSize: 11 }}>
-                    UID này chỉ dùng để tham chiếu khi chỉnh sửa tài khoản.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <label htmlFor="admin-password-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                    Mật khẩu đăng nhập <span style={{ color: "#ff4d4f" }}>*</span>
-                  </label>
-                  <Space.Compact style={{ width: "100%", marginBottom: 8 }}>
-                    <Input.Password
-                      id="admin-password-input"
-                      placeholder="Mật khẩu cho member nội bộ"
-                      value={password}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                      style={{ borderRadius: 6 }}
-                    />
-                    <Button onClick={() => setPassword(generateTemporaryPassword())}>Tạo lại</Button>
-                    <Button
-                      icon={<CopyOutlined />}
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(password);
-                          message.success("Đã sao chép mật khẩu");
-                        } catch {
-                          message.error("Không thể sao chép mật khẩu");
-                        }
-                      }}
-                    >
-                      Sao chép
-                    </Button>
-                  </Space.Compact>
-                  <div style={{ color: muteColor, fontSize: 11 }}>
-                    Admin nhập hoặc tạo mật khẩu rồi sao chép gửi trực tiếp cho member.
-                  </div>
-                </>
-              )}
-            </div>
+                  <Button
+                    onClick={() => setPassword(generateTemporaryPassword())}
+                    style={{ borderRadius: 0 }}
+                  >
+                    Tạo mới
+                  </Button>
+                  <Button
+                    icon={<CopyOutlined />}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(password);
+                        message.success("Đã sao chép");
+                      } catch {
+                        message.error("Không thể sao chép");
+                      }
+                    }}
+                    style={{ borderRadius: "0 8px 8px 0" }}
+                  />
+                </Space.Compact>
+              </div>
+            )}
+
+            {editing && (
+              <div>
+                <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 600, color: textColor }}>
+                  Firebase UID
+                </label>
+                <Input value={uid} disabled style={{ borderRadius: 8 }} />
+              </div>
+            )}
+
             <div>
-              <label htmlFor="admin-email-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                Địa chỉ Email <span style={{ color: "#ff4d4f" }}>*</span>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 600, color: textColor }}>
+                Email <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <Input
-                id="admin-email-input"
-                placeholder="user@example.com"
-                required
+                placeholder="user@company.com"
                 value={email}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                style={{ borderRadius: 6 }}
+                style={{ borderRadius: 8 }}
               />
             </div>
+
             <div>
-              <label htmlFor="admin-displayname-input" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                Tên hiển thị (Tên Admin) <span style={{ color: "#ff4d4f" }}>*</span>
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 600, color: textColor }}>
+                Tên hiển thị <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <Input
-                id="admin-displayname-input"
                 placeholder="Nguyễn Văn A"
-                required
                 value={displayName}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
-                style={{ borderRadius: 6 }}
+                style={{ borderRadius: 8 }}
               />
             </div>
+
             <div>
-              <label htmlFor="admin-role-select" style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: textColor }}>
-                Quyền hạn hệ thống
+              <label style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 600, color: textColor }}>
+                Quyền hạn
               </label>
               <Select
-                id="admin-role-select"
                 value={role}
                 onChange={(val: number) => setRole(val as 0 | 1)}
                 style={{ width: "100%" }}
                 disabled={isEditingSelf}
-              >
-                <Select.Option value={0}>Read-only (Chỉ đọc dữ liệu)</Select.Option>
-                <Select.Option value={1}>Admin (Toàn quyền quản trị)</Select.Option>
-              </Select>
-              {isEditingSelf ? (
-                <div style={{ marginTop: 6, color: "#fa8c16", fontSize: 11 }}>
-                  Bạn không thể tự hạ quyền của chính mình để tránh mất quyền quản trị.
+                options={[
+                  { value: 0, label: "Viewer — Chỉ đọc dữ liệu" },
+                  { value: 1, label: "Admin — Toàn quyền quản trị" },
+                ]}
+              />
+              {isEditingSelf && (
+                <div style={{ marginTop: 8, color: "#f59e0b", fontSize: 12 }}>
+                  Bạn không thể tự hạ quyền của chính mình.
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         </Modal>

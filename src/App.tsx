@@ -162,12 +162,12 @@ function App() {
                   element={<RequireAuth><SettingsPage /></RequireAuth>}
                 />
                 <Route
-                  path="/seeding/*"
-                  element={<RequireAuth><SeedingPage /></RequireAuth>}
-                />
-                <Route
                   path="/admin"
                   element={<RequireAuth><AdminPage /></RequireAuth>}
+                />
+                <Route
+                  path="/seeding"
+                  element={<RequireAuth><SeedingPage /></RequireAuth>}
                 />
               </Routes>
             </Suspense>

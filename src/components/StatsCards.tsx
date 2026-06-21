@@ -81,21 +81,21 @@ export const StatsCards = ({
   const statsItems = [
     {
       key: "comments",
-      label: "Total Comments",
+      label: "Tổng bình luận",
       value: comments,
       formatted: formatNumber(comments),
       delta: getDelta(comments, prevStats?.comments),
     },
     {
       key: "imports",
-      label: "Import Volume",
+      label: "Số lần import",
       value: totalImport,
       formatted: formatNumber(totalImport),
       delta: getDelta(totalImport, prevStats?.totalImport),
     },
     {
       key: "efficiency",
-      label: "Avg Efficiency Score",
+      label: "Hiệu suất trung bình",
       value: avgEfficiency,
       formatted: totalImport > 0 ? `${avgEfficiency}%` : "—",
       delta: efficiencyDelta,

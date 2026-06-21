@@ -1,6 +1,6 @@
 /**
- * useAllEngagement — tải toàn bộ comments + reactions từ mọi import.
- * Dùng cho InsightsPanel và SentimentChart trên AnalyticsPage.
+ * useAllEngagement — tải toàn bộ comments từ mọi import.
+ * Dùng cho AI Summary trên AnalyticsPage.
  * Kết quả được cache trong state, chỉ reload khi filter hoặc signal thay đổi.
  */
 import { useState, useEffect } from "react";

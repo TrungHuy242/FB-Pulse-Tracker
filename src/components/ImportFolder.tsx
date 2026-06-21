@@ -110,6 +110,8 @@ interface CommentEventItem {
   comment?: string;
   timestamp?: number;
   group?: string;
+  postUrl?: string;
+  url?: string;
 }
 
 interface ReactionLabelValue {
@@ -954,6 +956,7 @@ function buildCommentItems(source: CommentEventItem[]) {
         content: cmt.comment?.comment ?? "",
         commentTime: cmt.comment?.timestamp ?? 0,
         title: (item.title ?? "").replace(/\.+$/, ""),
+        postUrl: item.postUrl ?? item.url ?? "",
         group: cmt.comment?.group ?? "",
       }));
     }
@@ -963,6 +966,7 @@ function buildCommentItems(source: CommentEventItem[]) {
         content: item.comment ?? "",
         commentTime: item.timestamp ?? 0,
         title: (item.title ?? "").replace(/\.+$/, ""),
+        postUrl: item.postUrl ?? item.url ?? "",
         group: item.group ?? "",
       },
     ];

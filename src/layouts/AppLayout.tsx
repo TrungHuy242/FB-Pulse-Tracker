@@ -23,12 +23,9 @@ import {
   MenuOutlined,
   CloseOutlined,
   UserOutlined,
-  PlayCircleOutlined,
-  RobotOutlined,
-  ProfileOutlined,
-  CopyOutlined,
   SunOutlined,
   MoonOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -50,18 +47,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { key: "imports",   label: "Imports",          icon: <ImportOutlined />,       path: "/imports" },
   { key: "analytics", label: "Analytics",        icon: <LineChartOutlined />,    path: "/analytics" },
   { key: "comments",  label: "Bình luận",        icon: <CommentOutlined />,      path: "/comments" },
-  {
-    key: "seeding",
-    label: "Seeding Manager",
-    icon: <PlayCircleOutlined />,
-    path: "/seeding",
-    children: [
-      { key: "seeding-campaigns", label: "Chiến dịch", icon: <PlayCircleOutlined />, path: "/seeding/campaigns" },
-      { key: "seeding-planner", label: "AI Planner", icon: <RobotOutlined />, path: "/seeding/planner" },
-      { key: "seeding-profiles", label: "Profiles GPM", icon: <ProfileOutlined />, path: "/seeding/profiles" },
-      { key: "seeding-comments", label: "Thư viện bình luận", icon: <CopyOutlined />, path: "/seeding/comments" },
-    ],
-  },
+  { key: "seeding",   label: "Seeding Manager",   icon: <PlayCircleOutlined />,   path: "/seeding" },
 ];
 
 const BOTTOM_NAV_ITEMS: NavItemConfig[] = [
@@ -171,28 +157,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, topBar, title })
 
             <div className="nav-section-label" style={{ marginTop: 8 }}>Hệ thống</div>
             {BOTTOM_NAV_ITEMS.map(renderNavItem)}
-          </div>
-          <div style={{ padding: "10px 8px 0", marginTop: 20 }}>
-            <Button
-              type="primary"
-              style={{
-                width: "100%",
-                background: "#10b981",
-                borderColor: "#10b981",
-                color: "#ffffff",
-                fontWeight: 600,
-                fontSize: 12,
-                height: 36,
-                borderRadius: 6,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "none"
-              }}
-              onClick={() => navigate("/settings")}
-            >
-              Upgrade Plan
-            </Button>
           </div>
         </nav>
 

@@ -1,371 +1,432 @@
 /**
- * Seeding Service — Firestore CRUD cho 4 collections seeding.
- *
- * Collections: seedingProfiles · seedingCampaigns · seedingTasks · seedingComments
- * Phân quyền: read = isAllowedUser, write = isAdmin (Firestore Rules)
- *
- * FIX #12: Thêm onSnapshot subscriptions để SeedingPage cập nhật realtime.
+ * Seeding Service - AI Agent Logic
+ * 
+ * Dùng AI (Gemini) để generate content động
+ * Fallback về template nếu AI fail
  */
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  writeBatch,
-  onSnapshot,
-  Timestamp,
-} from "firebase/firestore";
-import type { FieldValue } from "firebase/firestore";
-import { db } from "@/service/firebase";
+
+import { seedingDb } from "./seedingDb";
+import { aiSeedingService } from "./aiSeedingService";
 import type {
-  SeedingProfile,
-  SeedingCampaign,
-  SeedingTask,
-  SeedingComment,
-  ProfileStatus,
-  CampaignStatus,
-  TaskStatus,
+  SeedingPost,
+  SeedingGroup,
+  SeedingCategory,
+  GroupCategory,
+  PostStatus,
+  GeneratePostInput,
+  RedirectEngineResult,
+  SeedPostResult,
+  BaitCommentsResult,
 } from "@/types/seeding";
-
-// ── Collection refs ───────────────────────────────────────────────────────────
-
-const profilesRef  = () => collection(db, "seedingProfiles");
-const campaignsRef = () => collection(db, "seedingCampaigns");
-const tasksRef     = () => collection(db, "seedingTasks");
-const commentsRef  = () => collection(db, "seedingComments");
-
-type CampaignUpdateData = Partial<Omit<SeedingCampaign, "id" | "createdAt" | "scheduledAt">> & {
-  scheduledAt?: SeedingCampaign["scheduledAt"] | FieldValue;
-};
-
-type ProfileUpdateData = Partial<Omit<SeedingProfile, "id" | "createdAt" | "fbSyncedAt">> & {
-  fbSyncedAt?: SeedingProfile["fbSyncedAt"] | FieldValue;
-};
-
-// ── Realtime subscriptions ────────────────────────────────────────────────────
-
-/**
- * Subscribe realtime vào campaigns collection.
- * Trả về unsubscribe function — gọi trong useEffect cleanup.
- */
-export function subscribeCampaigns(
-  callback: (campaigns: SeedingCampaign[]) => void
-): () => void {
-  const q = query(campaignsRef(), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingCampaign)));
-  });
-}
-
-/**
- * Subscribe realtime vào profiles collection.
- */
-export function subscribeProfiles(
-  callback: (profiles: SeedingProfile[]) => void
-): () => void {
-  const q = query(profilesRef(), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingProfile)));
-  });
-}
-
-/**
- * Subscribe realtime vào comments library.
- */
-export function subscribeCommentLibrary(
-  callback: (comments: SeedingComment[]) => void
-): () => void {
-  const q = query(commentsRef(), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingComment)));
-  });
-}
-
-/**
- * Subscribe realtime vào tất cả tasks collection.
- */
-export function subscribeAllTasks(
-  callback: (tasks: SeedingTask[]) => void
-): () => void {
-  const q = query(tasksRef(), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingTask)));
-  });
-}
-
-// ── Profiles ──────────────────────────────────────────────────────────────────
-
-export async function getProfiles(): Promise<SeedingProfile[]> {
-  const snap = await getDocs(query(profilesRef(), orderBy("createdAt", "desc")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingProfile));
-}
-
-export async function createProfile(
-  data: Omit<SeedingProfile, "id" | "createdAt">
-): Promise<SeedingProfile> {
-  const ref = await addDoc(profilesRef(), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
-  const snap = await getDoc(ref);
-  return { id: snap.id, ...snap.data() } as SeedingProfile;
-}
-
-export async function updateProfile(
-  id: string,
-  data: ProfileUpdateData
-): Promise<void> {
-  await updateDoc(doc(db, "seedingProfiles", id), { ...data });
-}
-
-export async function deleteProfile(id: string): Promise<void> {
-  await deleteDoc(doc(db, "seedingProfiles", id));
-}
-
-/** Batch upsert profiles từ CSV — tạo mới nếu profileId chưa có, cập nhật nếu đã có */
-export async function upsertProfiles(
-  rows: Array<{
-    profileId: string;
-    profileName: string;
-    status?: ProfileStatus;
-    note?: string;
-  }>
-): Promise<number> {
-  const existing = await getProfiles();
-  const existingMap = new Map(existing.map((p) => [p.profileId, p]));
-
-  const batch = writeBatch(db);
-  let upserted = 0;
-
-  for (const row of rows) {
-    const trimmed = row.profileId.trim();
-    if (!trimmed) continue;
-
-    const existing_ = existingMap.get(trimmed);
-    if (existing_) {
-      batch.update(doc(db, "seedingProfiles", existing_.id), {
-        profileName: row.profileName.trim(),
-        status: row.status ?? existing_.status,
-        ...(row.note !== undefined && { note: row.note }),
-      });
-    } else {
-      const newRef = doc(profilesRef());
-      batch.set(newRef, {
-        profileId: trimmed,
-        profileName: row.profileName.trim(),
-        status: row.status ?? "active",
-        note: row.note ?? "",
-        createdAt: serverTimestamp(),
-      });
-    }
-    upserted++;
-  }
-
-  await batch.commit();
-  return upserted;
-}
-
-// ── Campaigns ─────────────────────────────────────────────────────────────────
-
-export async function getCampaigns(): Promise<SeedingCampaign[]> {
-  const snap = await getDocs(query(campaignsRef(), orderBy("createdAt", "desc")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingCampaign));
-}
-
-export async function createCampaign(
-  data: Omit<SeedingCampaign, "id" | "createdAt" | "updatedAt">
-): Promise<SeedingCampaign> {
-  const now = serverTimestamp();
-  const ref = await addDoc(campaignsRef(), { ...data, createdAt: now, updatedAt: now });
-  const snap = await getDoc(ref);
-  return { id: snap.id, ...snap.data() } as SeedingCampaign;
-}
-
-export async function updateCampaign(
-  id: string,
-  data: CampaignUpdateData
-): Promise<void> {
-  await updateDoc(doc(db, "seedingCampaigns", id), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function deleteCampaign(id: string): Promise<void> {
-  // Xóa campaign và tất cả tasks liên quan
-  const taskSnap = await getDocs(
-    query(tasksRef(), where("campaignId", "==", id))
-  );
-  const batch = writeBatch(db);
-  taskSnap.docs.forEach((d) => batch.delete(d.ref));
-  batch.delete(doc(db, "seedingCampaigns", id));
-  await batch.commit();
-}
-
-// ── Tasks ─────────────────────────────────────────────────────────────────────
-
-export async function getTasksByCampaign(campaignId: string): Promise<SeedingTask[]> {
-  const snap = await getDocs(
-    query(tasksRef(), where("campaignId", "==", campaignId))
-  );
-  const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingTask));
-  // Sắp xếp client-side theo thời gian tạo tăng dần
-  return tasks.sort((a, b) => {
-    const timeA = a.createdAt?.seconds || 0;
-    const timeB = b.createdAt?.seconds || 0;
-    return timeA - timeB;
-  });
-}
-
-export async function createTasksBulk(
-  tasks: Array<Omit<SeedingTask, "id" | "createdAt" | "status" | "finishedAt" | "exportedAt" | "errorMessage">>,
-  initialStatus: TaskStatus = "pending"
-): Promise<number> {
-  const batch = writeBatch(db);
-  for (const task of tasks) {
-    const ref = doc(tasksRef());
-    batch.set(ref, {
-      ...task,
-      status: initialStatus,
-      createdAt: serverTimestamp(),
-    });
-  }
-  await batch.commit();
-  return tasks.length;
-}
-
-export async function deleteTask(id: string): Promise<void> {
-  await deleteDoc(doc(db, "seedingTasks", id));
-}
-
-export async function deleteTasksByCampaign(campaignId: string): Promise<void> {
-  const snap = await getDocs(
-    query(tasksRef(), where("campaignId", "==", campaignId))
-  );
-  const batch = writeBatch(db);
-  snap.docs.forEach((d) => batch.delete(d.ref));
-  await batch.commit();
-}
-
-/** Mark tasks là đã export (ghi exportedAt) */
-export async function markTasksExported(taskIds: string[]): Promise<void> {
-  if (taskIds.length === 0) return;
-  const batch = writeBatch(db);
-  const now = serverTimestamp();
-  for (const id of taskIds) {
-    batch.update(doc(db, "seedingTasks", id), { exportedAt: now });
-  }
-  await batch.commit();
-}
-
-/** Batch update task statuses từ report import */
-export async function applyTaskReport(
-  updates: Array<{
-    id: string;
-    status: TaskStatus;
-    errorMessage?: string;
-    finishedAt?: Timestamp;
-  }>
-): Promise<number> {
-  if (updates.length === 0) return 0;
-  const batch = writeBatch(db);
-  for (const u of updates) {
-    batch.update(doc(db, "seedingTasks", u.id), {
-      status: u.status,
-      ...(u.errorMessage !== undefined && { errorMessage: u.errorMessage }),
-      ...(u.finishedAt && { finishedAt: u.finishedAt }),
-    });
-  }
-  await batch.commit();
-  return updates.length;
-}
-
-/** Lấy tasks theo danh sách task_id (để match report) */
-export async function getTasksByIds(ids: string[]): Promise<SeedingTask[]> {
-  if (ids.length === 0) return [];
-  // Firestore where "in" giới hạn 30 items — chunk nếu cần
-  const CHUNK = 30;
-  const results: SeedingTask[] = [];
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const chunk = ids.slice(i, i + CHUNK);
-    const snap = await getDocs(
-      query(tasksRef(), where("__name__", "in", chunk.map((id) => doc(db, "seedingTasks", id))))
-    );
-    snap.docs.forEach((d) => results.push({ id: d.id, ...d.data() } as SeedingTask));
-  }
-  return results;
-}
-
-// ── Comment Library ───────────────────────────────────────────────────────────
-
-export async function getSeedingComments(): Promise<SeedingComment[]> {
-  const snap = await getDocs(query(commentsRef(), orderBy("createdAt", "desc")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SeedingComment));
-}
-
-export async function createSeedingComment(
-  data: Omit<SeedingComment, "id" | "createdAt" | "usageCount">
-): Promise<SeedingComment> {
-  const ref = await addDoc(commentsRef(), {
-    ...data,
-    usageCount: 0,
-    createdAt: serverTimestamp(),
-  });
-  const snap = await getDoc(ref);
-  return { id: snap.id, ...snap.data() } as SeedingComment;
-}
-
-export async function updateSeedingComment(
-  id: string,
-  data: Partial<Pick<SeedingComment, "text" | "tags">>
-): Promise<void> {
-  await updateDoc(doc(db, "seedingComments", id), { ...data });
-}
-
-export async function deleteSeedingComment(id: string): Promise<void> {
-  await deleteDoc(doc(db, "seedingComments", id));
-}
-
-/** Tăng usageCount khi comment được dùng để tạo task */
-export async function incrementCommentUsage(ids: string[]): Promise<void> {
-  void ids;
-  // No-op — usageCount updated separately via direct updateSeedingComment if needed
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
-  draft: "Nháp",
-  active: "Đang chạy",
-  paused: "Tạm dừng",
-  completed: "Hoàn thành",
-  scheduled: "Đã lên lịch",
-};
+function randomPick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
-  scheduled: "Đã lên lịch",
-  pending: "Chờ",
-  running: "Đang chạy",
-  success: "Thành công",
-  failed: "Thất bại",
-  skipped: "Bỏ qua",
-};
+function detectCategory(input: string): SeedingCategory {
+  const content = input.toLowerCase();
+  
+  if (content.includes("trung tâm")) return "tìm trung tâm";
+  if (content.includes("gia sư") || content.includes("dạy kèm")) return "tìm gia sư";
+  if (content.includes("lớp")) return "tìm lớp";
+  if (content.includes("khóa học")) return "tìm khóa học";
+  if (content.includes("online") || content.includes("1:1")) return "học online";
+  if (content.includes("hs") || content.includes("thi")) return "hỏi HSK";
+  if (content.includes("tài liệu") || content.includes("sách")) return "hỏi tài liệu";
+  if (content.includes("app") || content.includes("web")) return "hỏi app/web";
+  if (content.includes("tự học")) return "tự học";
+  
+  return "hỏi kinh nghiệm học";
+}
 
-export const ACTION_LABELS: Record<string, string> = {
-  like: "Like",
-  comment: "Comment",
-  share: "Share",
-};
+function mapCategoryToGroupCategory(postCategory: SeedingCategory): GroupCategory {
+  const mapping: { postCategory: SeedingCategory[]; groupCategory: GroupCategory }[] = [
+    { postCategory: ["tìm khóa học", "tìm trung tâm", "tìm lớp", "tìm gia sư"], groupCategory: "review" },
+    { postCategory: ["học online"], groupCategory: "online" },
+    { postCategory: ["hỏi HSK"], groupCategory: "hsk" },
+    { postCategory: ["hỏi tài liệu", "hỏi app/web", "tự học"], groupCategory: "tailieu" },
+    { postCategory: ["hỏi kinh nghiệm học"], groupCategory: "all" },
+  ];
+  
+  for (const m of mapping) {
+    if (m.postCategory.includes(postCategory)) {
+      return m.groupCategory;
+    }
+  }
+  return "all";
+}
 
-export const PROFILE_STATUS_LABELS: Record<ProfileStatus, string> = {
-  active: "Hoạt động",
-  inactive: "Không dùng",
-  banned: "Bị khóa",
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC SERVICE API
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const seedingService = {
+  // ── AI-Powered Campaign Generation ─────────────────────────────────────────
+  
+  async createCampaign(input: GeneratePostInput): Promise<{
+    post: SeedingPost;
+    seedResult: SeedPostResult;
+    baitResult: BaitCommentsResult;
+    redirectResult: RedirectEngineResult;
+  }> {
+    const category = input.groupType || detectCategory(input.sourceContent || input.topic);
+    
+    // Get target group
+    let targetGroup: SeedingGroup | null = null;
+    const groups = await seedingDb.getGroupsByCategory(mapCategoryToGroupCategory(category));
+    if (groups.length > 0) {
+      targetGroup = groups[0];
+    } else {
+      const allGroups = await seedingDb.getActiveGroups();
+      if (allGroups.length > 0) {
+        targetGroup = allGroups[0];
+      }
+    }
+    
+    // Get previous posts/comments for style engine (avoid duplicates)
+    const previousPosts = await seedingDb.getAllPosts();
+    const previousPostsText = previousPosts.slice(0, 20).map(p => p.content);
+    const previousComments = previousPosts.flatMap(p => p.comments).map(c => c.content);
+    
+    // Generate using AI
+    const aiCampaign = await aiSeedingService.generateCampaign({
+      category,
+      topic: input.topic || input.sourceContent,
+      targetGroup,
+      previousPosts: previousPostsText,
+      previousComments,
+    });
+    
+    // Save to Firebase
+    const post = await seedingDb.createPost({
+      title: aiCampaign.title,
+      content: aiCampaign.post,
+      category: aiCampaign.category,
+      goal: `AI Generated - ${category}`,
+      target_group_id: targetGroup?.id,
+      target_group: targetGroup?.name,
+    });
+    
+    // Save bait comments
+    const savedComments = [];
+    for (const content of aiCampaign.comments) {
+      const comment = await seedingDb.createComment({
+        post_id: post.id,
+        content,
+        type: "bait",
+      });
+      savedComments.push(comment);
+    }
+    
+    // Save redirect comment
+    if (aiCampaign.redirect.content !== "NO_GROUP_FOUND" && targetGroup) {
+      await seedingDb.createComment({
+        post_id: post.id,
+        content: aiCampaign.redirect.content,
+        type: "redirect",
+      });
+      await seedingDb.markGroupUsed(targetGroup.id);
+    }
+    
+    // Reload post với comments
+    const finalPost = await seedingDb.getPost(post.id);
+    
+    return {
+      post: finalPost || post,
+      seedResult: {
+        title: aiCampaign.title,
+        content: aiCampaign.post,
+        category: aiCampaign.category,
+        psychology: "AI Generated",
+        postId: post.id,
+      },
+      baitResult: {
+        postId: post.id,
+        comments: aiCampaign.comments,
+        commentObjects: savedComments,
+      },
+      redirectResult: {
+        postId: post.id,
+        originalPost: aiCampaign.post,
+        detectedCategory: aiCampaign.category,
+        mappedGroupCategory: targetGroup ? mapCategoryToGroupCategory(category) : "all",
+        targetGroup,
+        redirectComment: aiCampaign.redirect.content,
+        success: !!targetGroup && aiCampaign.redirect.content !== "NO_GROUP_FOUND",
+        errorMessage: !targetGroup ? "Chưa có group phù hợp, cần thêm group trong quản lý nhóm" : undefined,
+      },
+    };
+  },
+  
+  // Generate 4 bài cho ngày dùng AI
+  async generateDailyCampaigns(): Promise<SeedingPost[]> {
+    const aiCampaigns = await aiSeedingService.generateDailyCampaigns(4);
+    
+    const results: SeedingPost[] = [];
+    
+    for (const aiCampaign of aiCampaigns) {
+      // Get target group
+      let targetGroup: SeedingGroup | null = null;
+      const groups = await seedingDb.getGroupsByCategory(mapCategoryToGroupCategory(aiCampaign.category));
+      if (groups.length > 0) {
+        targetGroup = groups[0];
+      } else {
+        const allGroups = await seedingDb.getActiveGroups();
+        if (allGroups.length > 0) {
+          targetGroup = allGroups[0];
+        }
+      }
+      
+      // Save post
+      const post = await seedingDb.createPost({
+        title: aiCampaign.title,
+        content: aiCampaign.post,
+        category: aiCampaign.category,
+        goal: "AI Daily Campaign",
+        target_group_id: targetGroup?.id,
+        target_group: targetGroup?.name,
+      });
+      
+      // Save comments
+      for (const content of aiCampaign.comments) {
+        await seedingDb.createComment({
+          post_id: post.id,
+          content,
+          type: "bait",
+        });
+      }
+      
+      // Save redirect
+      if (aiCampaign.redirect.content !== "NO_GROUP_FOUND" && targetGroup) {
+        await seedingDb.createComment({
+          post_id: post.id,
+          content: aiCampaign.redirect.content,
+          type: "redirect",
+        });
+        await seedingDb.markGroupUsed(targetGroup.id);
+      }
+      
+      const finalPost = await seedingDb.getPost(post.id);
+      if (finalPost) results.push(finalPost);
+    }
+    
+    return results;
+  },
+  
+  // ── Legacy Generate (không dùng AI) ───────────────────────────────────────
+  
+  generateSeedPost(category?: SeedingCategory): SeedPostResult {
+    const selectedCategory = category || "hỏi kinh nghiệm học";
+    const postId = crypto.randomUUID();
+    
+    return {
+      title: `Seed Post ${selectedCategory}`,
+      content: "Legacy template - use AI generation instead",
+      category: selectedCategory,
+      psychology: "người đang tìm kiếm thông tin",
+      postId,
+    };
+  },
+  
+  generateBaitComments(category: SeedingCategory, postId: string): BaitCommentsResult {
+    return {
+      postId,
+      comments: [],
+      commentObjects: [],
+    };
+  },
+  
+  async generateRedirect(postContent: string, postCategory: SeedingCategory): Promise<RedirectEngineResult> {
+    const groupCategory = mapCategoryToGroupCategory(postCategory);
+    const groups = await seedingDb.getGroupsByCategory(groupCategory);
+    
+    let targetGroup: SeedingGroup | null = null;
+    
+    if (groups.length > 0) {
+      targetGroup = groups[0];
+    } else {
+      const allGroups = await seedingDb.getActiveGroups();
+      if (allGroups.length > 0) {
+        targetGroup = allGroups[0];
+      }
+    }
+    
+    // Use AI to generate smart redirect comment
+    if (targetGroup) {
+      try {
+        const aiResult = await aiSeedingService.generateRedirectOnly({
+          content: postContent,
+          targetGroup,
+        });
+        
+        return {
+          postId: crypto.randomUUID(),
+          originalPost: postContent,
+          detectedCategory: aiResult.detectedCategory,
+          mappedGroupCategory: groupCategory,
+          targetGroup,
+          redirectComment: aiResult.redirectComment,
+          success: true,
+        };
+      } catch (error) {
+        console.error("AI redirect error, using fallback:", error);
+      }
+    }
+    
+    // Fallback template
+    const redirectComment = targetGroup 
+      ? `Tui cũng từng tìm lớp nên thấy quan trọng là chọn chỗ phù hợp á. B vào nhóm này hỏi thêm nè:\n${targetGroup.url}`
+      : "Chưa có group phù hợp, cần thêm nhóm trong quản lý nhóm";
+    
+    return {
+      postId: crypto.randomUUID(),
+      originalPost: postContent,
+      detectedCategory: postCategory,
+      mappedGroupCategory: groupCategory,
+      targetGroup,
+      redirectComment,
+      success: !!targetGroup,
+      errorMessage: targetGroup ? undefined : "Chưa có group phù hợp",
+    };
+  },
+
+  /**
+   * Generate redirect từ nội dung tùy ý (cho Redirect Tool)
+   */
+  async generateRedirectFromContent(content: string): Promise<RedirectEngineResult> {
+    // Detect category
+    const lowerContent = content.toLowerCase();
+    let category: SeedingCategory = "hỏi kinh nghiệm học";
+    
+    if (lowerContent.includes("trung tâm") || lowerContent.includes("khóa học")) {
+      category = "tìm trung tâm";
+    } else if (lowerContent.includes("gia sư") || lowerContent.includes("dạy kèm")) {
+      category = "tìm gia sư";
+    } else if (lowerContent.includes("lớp") && !lowerContent.includes("online")) {
+      category = "tìm lớp";
+    } else if (lowerContent.includes("online") || lowerContent.includes("1:1")) {
+      category = "học online";
+    } else if (lowerContent.includes("hs") || lowerContent.includes("thi") || lowerContent.includes("luyện đề")) {
+      category = "hỏi HSK";
+    } else if (lowerContent.includes("tài liệu") || lowerContent.includes("sách") || lowerContent.includes("giáo trình")) {
+      category = "hỏi tài liệu";
+    } else if (lowerContent.includes("app") || lowerContent.includes("web") || lowerContent.includes("ứng dụng")) {
+      category = "hỏi app/web";
+    } else if (lowerContent.includes("tự học") || lowerContent.includes("tự mình")) {
+      category = "tự học";
+    }
+    
+    return this.generateRedirect(content, category);
+  },
+  
+  // ── CRUD ──────────────────────────────────────────────────────────────────
+  
+  async getAllPosts(): Promise<SeedingPost[]> {
+    return seedingDb.getAllPosts();
+  },
+  
+  async getPost(id: string): Promise<SeedingPost | undefined> {
+    return seedingDb.getPost(id);
+  },
+  
+  async getPostsByDate(date: string): Promise<SeedingPost[]> {
+    return seedingDb.getPostsByDate(date);
+  },
+  
+  async getPostsByDateRange(startDate: string, endDate: string): Promise<SeedingPost[]> {
+    return seedingDb.getPostsByDateRange(startDate, endDate);
+  },
+  
+  async updatePostStatus(id: string, status: PostStatus): Promise<boolean> {
+    return seedingDb.updatePostStatus(id, status);
+  },
+  
+  async deletePost(id: string): Promise<boolean> {
+    return seedingDb.deletePost(id);
+  },
+  
+  async markCommentUsed(commentId: string): Promise<boolean> {
+    return seedingDb.markCommentUsed(commentId);
+  },
+  
+  // ── Groups ────────────────────────────────────────────────────────────────
+  
+  async getGroups(): Promise<SeedingGroup[]> {
+    return seedingDb.getAllGroups();
+  },
+  
+  async getActiveGroups(): Promise<SeedingGroup[]> {
+    return seedingDb.getActiveGroups();
+  },
+  
+  async addGroup(group: Omit<SeedingGroup, "id" | "createdAt">): Promise<SeedingGroup> {
+    return seedingDb.createGroup({
+      name: group.name,
+      url: group.url,
+      category: group.category,
+      memberCount: group.memberCount,
+      status: group.status,
+    });
+  },
+  
+  async updateGroup(id: string, updates: Partial<SeedingGroup>): Promise<boolean> {
+    const result = await seedingDb.updateGroup(id, updates);
+    return !!result;
+  },
+  
+  async deleteGroup(id: string): Promise<boolean> {
+    return seedingDb.deleteGroup(id);
+  },
+  
+  // ── Stats ────────────────────────────────────────────────────────────────
+  
+  async getOverallStats() {
+    return seedingDb.getOverallStats();
+  },
+  
+  async getStatsByCategory() {
+    return seedingDb.getStatsByCategory();
+  },
+  
+  async getWeeklyStats() {
+    return seedingDb.getWeeklyStats();
+  },
+  
+  async getDailyStats(startDate?: string, endDate?: string) {
+    if (startDate && endDate) {
+      return seedingDb.getDailyStatsByRange(startDate, endDate);
+    }
+    return seedingDb.getAllDailyStats();
+  },
+  
+  async getRecentHistory(limit?: number) {
+    return seedingDb.getRecentHistory(limit);
+  },
+  
+  async initSampleData() {
+    return seedingDb.initSampleData();
+  },
+  
+  // ── Utility ───────────────────────────────────────────────────────────────
+  
+  async getHistory() {
+    return seedingDb.getAllDailyStats();
+  },
+  
+  async clearAllData() {
+    const posts = await this.getAllPosts();
+    for (const post of posts) {
+      await seedingDb.deletePost(post.id);
+    }
+  },
+  
+  exportData() {
+    return Promise.resolve("{}");
+  },
+  
+  importData(_jsonString: string) {
+    return Promise.resolve(false);
+  },
 };

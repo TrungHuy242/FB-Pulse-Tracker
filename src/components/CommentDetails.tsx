@@ -21,6 +21,7 @@ interface CommentItem {
   commentTime?: number;
   title?: string;
   group?: string;
+  postUrl?: string;
 }
 
 interface CommentDetailsProps {
@@ -99,7 +100,7 @@ const CommentDetails: React.FC<CommentDetailsProps> = ({
   }, [visible]);
   return (
     <Modal
-      title={`Comments${title ? ` — ${title}` : ""}`}
+      title={`Bình luận${title ? ` — ${title}` : ""}`}
       open={visible}
       onCancel={onClose}
       footer={null}
@@ -143,25 +144,31 @@ const CommentDetails: React.FC<CommentDetailsProps> = ({
                         <Avatar>{(item.authorName || "U").charAt(0)}</Avatar>
                       }
                       title={
-                        <div
-                          style={{ display: "flex", flexDirection: "column" }}
-                        >
-                          <div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                             <strong>
                               {(item?.title || "").replace(/\.+$/, "")}
 
                               {item?.group ? (
                                 <>
                                   {" "}
-                                  <span
-                                    style={{ color: "#888", marginLeft: 8 }}
-                                  >
+                                  <span style={{ color: "#888", marginLeft: 8 }}>
                                     trong{" "}
                                   </span>
                                   <span>{`${item.group}`}</span>
                                 </>
                               ) : null}
                             </strong>
+                            {item.postUrl && (
+                              <a
+                                href={item.postUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ marginLeft: "auto" }}
+                              >
+                                Xem bài
+                              </a>
+                            )}
                           </div>
                           <Text type="secondary" style={{ fontSize: 12 }}>
                             {item.commentTime

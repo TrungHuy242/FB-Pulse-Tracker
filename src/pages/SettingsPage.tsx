@@ -90,7 +90,7 @@ export default function SettingsPage() {
   const borderStyle = `1px solid ${isDark ? "#2a2a32" : "#dfdfdf"}`;
 
   return (
-    <AppLayout title="Settings">
+    <AppLayout title="Cài đặt">
       <Row gutter={[24, 24]}>
         {/* Left column: Jump to Section (Desktop only) */}
         <Col xs={0} md={6}>
@@ -146,7 +146,7 @@ export default function SettingsPage() {
                 }}
                 styles={{ body: { padding: "24px" } }}
               >
-                <SectionTitle icon={<BgColorsOutlined />} title="Theme Selection" />
+                <SectionTitle icon={<BgColorsOutlined />} title="Giao diện" />
                 <p style={{ fontSize: 13, color: textMuteColor, marginBottom: 20 }}>
                   Lựa chọn phong cách hiển thị giao diện cho toàn bộ hệ thống FB Pulse Tracker.
                 </p>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
                 }}
                 styles={{ body: { padding: "24px" } }}
               >
-                <SectionTitle icon={<UserOutlined />} title="Security & Member Account" />
+                <SectionTitle icon={<UserOutlined />} title="Bảo mật & Tài khoản thành viên" />
                 
                 {/* User avatar and metadata */}
                 <div
@@ -350,7 +350,7 @@ export default function SettingsPage() {
               }}
               styles={{ body: { padding: "20px 24px" } }}
             >
-              <SectionTitle icon={<InfoCircleOutlined />} title="System Specifications" />
+              <SectionTitle icon={<InfoCircleOutlined />} title="Thông số hệ thống" />
 
               <Space orientation="vertical" size={4} style={{ width: "100%" }}>
                 {[

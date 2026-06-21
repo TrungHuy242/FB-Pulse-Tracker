@@ -16,6 +16,7 @@ export interface CommentItem {
   content: string;
   commentTime: number; // Unix timestamp (seconds)
   title: string;
+  postUrl?: string; // URL of the Facebook post
   group: string;
   intent?: string;
   intentConfidence?: "high" | "medium" | "low";
