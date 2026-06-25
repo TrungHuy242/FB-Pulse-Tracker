@@ -118,9 +118,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         errMessage.includes("auth/user-not-found") ||
         errMessage.includes("wrong-password")
       ) {
-        message.error("Email hoac mat khau khong chinh xac.");
+        message.error("Email hoặc mật khẩu không chính xác.");
       } else {
-        message.error("Dang nhap that bai. Vui long kiem tra lai.");
+        message.error("Đăng nhập thất bại. Vui lòng kiểm tra lại.");
       }
     } finally {
       setLoading(false);
@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await signOut(auth);
       setUser(null);
-      message.success("Da dang xuat");
+      message.success("Đã đăng xuất");
     } catch (err) {
       console.error("Logout failed:", err);
     }
